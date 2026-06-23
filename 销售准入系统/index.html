@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>产品流程与文件管理系统</title>
+<style>
+:root{--bg:#f5f6f8;--card:#fff;--line:#e4e7ec;--txt:#1f2733;--muted:#6b7480;--blue:#2f5fcf;--blue-dk:#244aa0;
+--green:#1d9e57;--amber:#c47d12;--red:#cc3b3b;--green-bg:#e8f6ee;--amber-bg:#fbf1de;--red-bg:#fbe9e9;--blue-bg:#eaf0fc;--gray-bg:#eef0f3;}
+*{box-sizing:border-box}
+body{margin:0;font-family:"Microsoft YaHei","Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--txt);font-size:14px}
+header{background:var(--card);border-bottom:1px solid var(--line);padding:0 20px;display:flex;align-items:center;gap:16px;height:54px;position:sticky;top:0;z-index:20}
+.logo{font-weight:700;font-size:16px;color:var(--blue-dk)}
+nav{display:flex;gap:4px;flex:1}
+nav button{background:none;border:none;padding:8px 14px;border-radius:7px;cursor:pointer;color:var(--muted);font-size:14px}
+nav button.active{background:var(--blue-bg);color:var(--blue-dk);font-weight:600}
+nav button:hover{background:var(--gray-bg)}
+.btn{background:var(--blue);color:#fff;border:none;padding:8px 16px;border-radius:7px;cursor:pointer;font-size:14px}
+.btn:hover{background:var(--blue-dk)}
+.btn.ghost{background:var(--card);color:var(--txt);border:1px solid var(--line)}
+.btn.sm{padding:4px 9px;font-size:12px}
+.btn.danger{background:none;color:var(--red);border:1px solid var(--red)}
+main{max-width:1100px;margin:20px auto;padding:0 20px}
+.view{display:none}.view.active{display:block}
+h2{font-size:18px;margin:0 0 4px}.sub{color:var(--muted);margin-bottom:16px}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px}
+.card.click{cursor:pointer}.card.click:hover{box-shadow:0 2px 10px rgba(0,0,0,.06);border-color:#c9d2e0}
+.card h3{margin:0 0 6px;font-size:16px}.meta{color:var(--muted);font-size:13px;margin-bottom:10px}
+.bar{height:8px;background:var(--gray-bg);border-radius:5px;overflow:hidden;margin:8px 0}
+.bar>i{display:block;height:100%;background:var(--blue)}.bar>i.full{background:var(--green)}
+.badge{display:inline-block;padding:2px 9px;border-radius:20px;font-size:12px;font-weight:600}
+.b-green{background:var(--green-bg);color:var(--green)}.b-amber{background:var(--amber-bg);color:var(--amber)}
+.b-red{background:var(--red-bg);color:var(--red)}.b-gray{background:var(--gray-bg);color:var(--muted)}.b-blue{background:var(--blue-bg);color:var(--blue-dk)}
+table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+th,td{padding:9px 11px;text-align:left;border-bottom:1px solid var(--line);font-size:13px;vertical-align:middle}
+th{background:#fafbfc;color:var(--muted);font-weight:600}tr:last-child td{border-bottom:none}
+select,input[type=text],input[type=number]{padding:5px 7px;border:1px solid var(--line);border-radius:6px;font-size:13px;background:#fff}
+select.s-通过,select.s-已用印{border-color:var(--green);color:var(--green)}
+select.s-退回{border-color:var(--red);color:var(--red)}select.s-送审中{border-color:var(--amber);color:var(--amber)}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin:14px 0 6px;border-bottom:2px solid var(--line)}
+.tabs button{background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;padding:8px 14px;cursor:pointer;color:var(--muted);font-size:14px}
+.tabs button.active{color:var(--blue-dk);border-bottom-color:var(--blue);font-weight:600}
+.banner{background:var(--amber-bg);color:var(--amber);padding:8px 12px;border-radius:8px;font-size:13px;margin:10px 0}
+.catlabel{font-weight:700;color:var(--blue-dk);margin:14px 0 6px;font-size:13px}
+.reqcard{background:var(--card);border:1px solid var(--line);border-radius:9px;margin-bottom:8px;overflow:hidden}
+.reqcard.done{border-color:#bfe3cd}
+.reqcard>summary{list-style:none;cursor:pointer;padding:11px 14px;display:flex;align-items:center;gap:10px}
+.reqcard>summary::-webkit-details-marker{display:none}
+.reqcard>summary::before{content:"▸";color:var(--muted);font-size:12px}
+.reqcard[open]>summary::before{content:"▾"}
+.rqname{font-weight:600;flex:1}
+.rqbody{padding:4px 14px 14px 32px;border-top:1px solid var(--line);background:#fcfcfd}
+.fblock{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px dashed var(--line);flex-wrap:wrap}
+.fblock:last-child{border-bottom:none}
+.fblabel{width:130px;font-size:13px;color:var(--muted);display:flex;align-items:center;gap:7px}
+.fblabel b{color:var(--txt)}
+.files{flex:1;display:flex;flex-wrap:wrap;gap:6px;min-width:160px}
+.fchip{background:var(--gray-bg);border-radius:6px;padding:2px 8px;font-size:12px}
+.fchip b{color:var(--blue-dk)}
+.xdel{color:var(--red);cursor:pointer;font-weight:700;margin-left:3px}
+.rqfoot{padding-top:10px;display:flex;gap:8px}
+.link{color:var(--blue);cursor:pointer;text-decoration:none}.na{color:#b9c0c9;font-size:12px}.muted{color:var(--muted)}
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(20,28,40,.45);z-index:50;align-items:center;justify-content:center}
+.modal-bg.show{display:flex}
+.modal{background:#fff;border-radius:12px;padding:22px;width:460px;max-width:93vw;max-height:90vh;overflow:auto}
+.modal h3{margin:0 0 16px}
+.field{margin-bottom:13px}.field label{display:block;font-size:13px;color:var(--muted);margin-bottom:5px}
+.field input[type=text],.field input[type=number],.field select{width:100%}
+.row{display:flex;gap:10px}.row>*{flex:1}
+.checks{display:flex;gap:16px;flex-wrap:wrap}.checks label{font-size:13px;color:var(--txt)}
+.modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:10px}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#222b39;color:#fff;padding:10px 18px;border-radius:8px;z-index:99;opacity:0;transition:.2s}
+.toast.show{opacity:1}.toast.err{background:var(--red)}
+.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+.empty{text-align:center;color:var(--muted);padding:50px 0}
+</style>
+</head>
+<body>
+<header>
+  <span class="logo">产品流程 · 文件管理</span>
+  <nav>
+    <button data-v="dashboard" class="active" onclick="nav('dashboard')">驾驶舱</button>
+    <button data-v="todo" onclick="nav('todo')">今日待办</button>
+    <button data-v="tpl" onclick="nav('tpl')">模板管理</button>
+    <button data-v="inst" onclick="nav('inst')">机构</button>
+  </nav>
+  <button class="btn ghost" onclick="exportAll()">导出全部</button>
+  <button class="btn" onclick="openCreate()">＋ 一键开产品</button>
+</header>
+<main>
+  <section id="dashboard" class="view active">
+    <h2>产品驾驶舱</h2><div class="sub">点产品卡片查看其全部流程的清单与文件。</div>
+    <div id="cards" class="cards"></div>
+  </section>
+
+  <section id="detail" class="view">
+    <button class="btn ghost sm" onclick="nav('dashboard')">← 返回</button>
+    <div id="detailBody" style="margin-top:12px"></div>
+  </section>
+
+  <section id="todo" class="view">
+    <h2>今日待办</h2><div class="sub">所有产品里"还没到位"的文件，按流程汇总。</div>
+    <div id="todoBody"></div>
+  </section>
+
+  <section id="tpl" class="view">
+    <h2>模板管理</h2>
+    <div class="sub">按「产品类型 × 流程」配置标准文件清单；产品类型配不到时自动用"通用"。开产品时据此生成。</div>
+    <div class="toolbar">
+      产品类型 <select id="tplType" onchange="loadBp()"></select>
+      <button class="btn ghost sm" onclick="addType()">＋类型</button>
+      流程 <select id="tplProc" onchange="loadBp()"></select>
+      <button class="btn ghost sm" onclick="addProc()">＋流程</button>
+      <span style="flex:1"></span>
+      <button class="btn" onclick="openBp()">＋ 新增文件项</button>
+    </div>
+    <div id="bpBody"></div>
+  </section>
+
+  <section id="inst" class="view">
+    <h2>机构</h2><div class="sub">机构的"是否有海报"会作为开产品时的默认值。</div>
+    <div id="instBody"></div>
+    <div class="card" style="max-width:420px;margin-top:14px">
+      <div class="field"><label>机构名称</label><input type="text" id="instName" placeholder="如：某某银行"></div>
+      <div class="field"><label><input type="checkbox" id="instPoster"> 该机构有海报</label></div>
+      <button class="btn" onclick="addInst()">添加机构</button>
+    </div>
+  </section>
+</main>
+
+<div class="modal-bg" id="mCreate"><div class="modal">
+  <h3>一键开产品</h3>
+  <div class="field"><label>产品名称 *</label><input type="text" id="cName" placeholder="如：XX私募证券投资基金一期"></div>
+  <div class="row">
+    <div class="field"><label>产品类型</label><select id="cType"></select></div>
+    <div class="field"><label>代销机构</label><select id="cInst"></select></div>
+  </div>
+  <div class="row">
+    <div class="field"><label>补充协议份数</label><input type="number" id="cSupp" min="1" value="1"></div>
+    <div class="field"><label>合同形态</label><select id="cForm"><option value="合并">合并（1份）</option><option value="拆分">拆分（3份）</option></select></div>
+  </div>
+  <div class="field"><label><input type="checkbox" id="cPoster"> 含海报（默认随机构）</label></div>
+  <div class="modal-actions"><button class="btn ghost" onclick="close_('mCreate')">取消</button><button class="btn" onclick="submitCreate()">生成清单</button></div>
+</div></div>
+
+<div class="modal-bg" id="mBp"><div class="modal">
+  <h3 id="bpTitle">文件项</h3>
+  <input type="hidden" id="bpId">
+  <div class="row">
+    <div class="field"><label>大类</label><input type="text" id="bpCat" placeholder="如：代销协议"></div>
+    <div class="field"><label>文件项名称 *</label><input type="text" id="bpName" placeholder="如：总对总协议"></div>
+  </div>
+  <div class="field"><label>需要哪些审查</label>
+    <div class="checks">
+      <label><input type="checkbox" id="bpXb"> 消保</label>
+      <label><input type="checkbox" id="bpFs"> 法审</label>
+      <label><input type="checkbox" id="bpYy"> 用印</label>
+    </div>
+  </div>
+  <div class="row">
+    <div class="field"><label>用印方（用印时填）</label><input type="text" id="bpSeal" placeholder="双方 / 对方机构"></div>
+    <div class="field"><label>纳入条件</label><select id="bpCond">
+      <option value="always">总是</option><option value="poster">机构有海报时</option>
+      <option value="merge">合同=合并时</option><option value="split">合同=拆分时</option></select></div>
+  </div>
+  <div class="row">
+    <div class="field"><label><input type="checkbox" id="bpRep"> 可复制多份（如补充协议）</label></div>
+    <div class="field"><label>排序</label><input type="number" id="bpSort" value="0"></div>
+  </div>
+  <div class="modal-actions"><button class="btn ghost" onclick="close_('mBp')">取消</button><button class="btn" onclick="saveBp()">保存</button></div>
+</div></div>
+
+<div class="modal-bg" id="mReq"><div class="modal">
+  <h3>增加一项文件（仅本产品）</h3>
+  <input type="hidden" id="rqProc">
+  <div class="row">
+    <div class="field"><label>大类</label><input type="text" id="rqCat" placeholder="如：其他"></div>
+    <div class="field"><label>文件项名称 *</label><input type="text" id="rqName"></div>
+  </div>
+  <div class="field"><label>需要哪些审查</label><div class="checks">
+    <label><input type="checkbox" id="rqXb"> 消保</label>
+    <label><input type="checkbox" id="rqFs"> 法审</label>
+    <label><input type="checkbox" id="rqYy"> 用印</label></div></div>
+  <div class="field"><label>用印方</label><input type="text" id="rqSeal" placeholder="双方 / 对方机构"></div>
+  <div class="modal-actions"><button class="btn ghost" onclick="close_('mReq')">取消</button><button class="btn" onclick="submitReq()">添加</button></div>
+</div></div>
+
+<div class="toast" id="toast"></div>
+<script>
+let CFG={processes:[],product_types:[],institutions:[]};
+const api=(u,m,b)=>fetch(u,{method:m||'GET',headers:{'Content-Type':'application/json'},body:b?JSON.stringify(b):undefined}).then(r=>r.json());
+const esc=s=>(s==null?'':''+s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function toast(m,e){const t=document.getElementById('toast');t.textContent=m;t.className='toast show'+(e?' err':'');setTimeout(()=>t.className='toast',2200);}
+function close_(id){document.getElementById(id).classList.remove('show');}
+function show_(id){document.getElementById(id).classList.add('show');}
+async function loadCfg(){CFG=await api('/api/config');}
+
+function nav(v){document.querySelectorAll('.view').forEach(s=>s.classList.remove('active'));document.getElementById(v).classList.add('active');
+ document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.dataset.v===v));
+ if(v==='dashboard')loadDash();if(v==='todo')loadTodo();if(v==='inst')loadInst();if(v==='tpl')loadTpl();}
+function navDetail(){document.querySelectorAll('.view').forEach(s=>s.classList.remove('active'));document.getElementById('detail').classList.add('active');document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));}
+
+async function loadDash(){
+  const ps=await api('/api/products');const el=document.getElementById('cards');
+  if(!ps.length){el.innerHTML='<div class="empty">还没有产品。点右上角"＋ 一键开产品"开始。</div>';return;}
+  el.innerHTML=ps.map(p=>`<div class="card click" onclick="openDetail(${p.id})">
+    <h3>${esc(p.name)}</h3><div class="meta">${esc(p.ptype||'—')} · ${esc(p.institution_name||'—')}</div>
+    <div class="bar"><i class="${p.ready?'full':''}" style="width:${p.progress}%"></i></div>
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <span class="muted">${p.done}/${p.total} 项到位 · ${p.progress}%</span>
+      <span class="badge ${p.ready?'b-green':'b-amber'}">${p.ready?'全部备齐':'进行中'}</span></div></div>`).join('');
+}
+
+async function openDetail(id,keepTab){
+  const d=await api('/api/product?id='+id);window._d=d;window._pid=id;
+  if(keepTab===undefined)window._tab=0;
+  navDetail();renderDetail();
+}
+function renderDetail(){
+  const d=window._d;const tabs=d.processes;
+  let head=`<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">
+    <div><h2 style="display:inline">${esc(d.name)}</h2> <span class="badge ${d.ready?'b-green':'b-amber'}">${d.ready?'全部备齐':'进行中'}</span>
+    <div class="sub">${esc(d.ptype||'—')} · ${esc(d.institution_name||'—')} · 合同:${esc(d.contract_form)} · 总进度 ${d.done}/${d.total}（${d.progress}%）</div></div>
+    <div style="display:flex;gap:8px"><button class="btn ghost sm" onclick="exportOne(${d.id},0)">导出文件包</button>
+    <button class="btn ghost sm" onclick="exportOne(${d.id},1)">导出(含历史)</button>
+    <button class="btn danger sm" onclick="delProduct(${d.id})">删除产品</button></div></div>`;
+  if(!tabs.length){document.getElementById('detailBody').innerHTML=head+'<div class="empty">该产品没有清单项。</div>';return;}
+  if(window._tab>=tabs.length)window._tab=0;
+  let tabbar=`<div class="tabs">`+tabs.map((t,i)=>`<button class="${i===window._tab?'active':''}" onclick="window._tab=${i};renderDetail()">${esc(t.name)} <span class="badge ${t.ready?'b-green':'b-gray'}" style="margin-left:4px">${t.done}/${t.total}</span></button>`).join('')+`</div>`;
+  const t=tabs[window._tab];
+  let body='';
+  if(!t.prior_ready)body+=`<div class="banner">⚠ 前序流程尚未备齐（软提示，不影响你继续操作本流程）</div>`;
+  body+=`<div class="toolbar"><span class="muted">${t.name}：${t.done}/${t.total} 到位</span><span style="flex:1"></span><button class="btn ghost sm" onclick="openReq(${t.id})">＋ 增加一项</button></div>`;
+  let cat='';
+  body+=t.requirements.map(r=>{let h='';if(r.category!==cat){cat=r.category;h=`<div class="catlabel">${esc(cat)}</div>`;}return h+reqCard(r);}).join('');
+  document.getElementById('detailBody').innerHTML=head+tabbar+body;
+}
+function reqCard(r){
+  let blocks=fblock(r,'主文件','主文件',null,null);
+  if(r.needs_xb)blocks+=fblock(r,'消保','消保','xb',r.xb_status);
+  if(r.needs_fs)blocks+=fblock(r,'法审','法审','fs',r.fs_status);
+  if(r.needs_yy)blocks+=fblock(r,'用印'+(r.seal_party?'·'+r.seal_party:''),'用印','yy',r.yy_status);
+  blocks+=fblock(r,'其他附件','其他',null,null);
+  return `<details class="reqcard ${r.done?'done':''}"><summary>
+    <span class="rqname">${esc(r.name)}</span>
+    <span class="badge ${r.done?'b-green':'b-blue'}">${esc(r.next_action)}</span></summary>
+    <div class="rqbody">${blocks}
+    <div class="rqfoot"><button class="btn ghost sm" onclick="dupReq(${r.id})">复制此项</button>
+    <button class="btn danger sm" onclick="delReq(${r.id})">删除此项</button></div></div></details>`;
+}
+function fblock(r,label,cat,field,val){
+  let opts=field?(field==='yy'?['待用印','已用印']:['未启动','送审中','通过','退回']):null;
+  let sel=opts?`<select class="s-${val}" onchange="setRev(${r.id},'${field}',this.value)">${opts.map(o=>`<option ${o===val?'selected':''}>${o}</option>`).join('')}</select>`:'';
+  let fs=(r.files[cat]||[]);
+  let flist=fs.map(f=>`<span class="fchip">${esc(f.filename)}${cat==='主文件'?` <b>V${f.version_no}</b>`:''} <a class="link" href="/api/file?fid=${f.id}">下载</a><span class="xdel" onclick="delFile(${f.id})">×</span></span>`).join('');
+  return `<div class="fblock"><div class="fblabel">${esc(label)}${sel}</div>
+    <div class="files">${flist||'<span class="na">无文件</span>'}</div>
+    <button class="btn ghost sm" onclick="pickFile(${r.id},'${cat}')">＋上传</button></div>`;
+}
+async function setRev(rid,field,value){const res=await api('/api/review','POST',{rid,field,value});if(res.error)toast(res.error,true);else toast('已更新');openDetail(window._pid,1);}
+function pickFile(rid,cat){const i=document.createElement('input');i.type='file';i.onchange=()=>{const f=i.files[0];if(!f)return;const rd=new FileReader();
+  rd.onload=async()=>{const res=await api('/api/upload','POST',{rid,category:cat,filename:f.name,data_base64:rd.result.split(',')[1]});if(res.error)toast(res.error,true);else toast('已上传');openDetail(window._pid,1);};rd.readAsDataURL(f);};i.click();}
+async function delFile(id){if(!confirm('删除此文件？'))return;await api('/api/file_delete','POST',{id});openDetail(window._pid,1);}
+async function dupReq(id){await api('/api/req_duplicate','POST',{id});toast('已复制');openDetail(window._pid,1);}
+async function delReq(id){if(!confirm('删除此项及其文件？'))return;await api('/api/req_delete','POST',{id});openDetail(window._pid,1);}
+async function delProduct(id){if(!confirm('确认删除整个产品？'))return;await api('/api/product_delete','POST',{id});nav('dashboard');}
+function exportOne(id,h){window.location='/api/export?id='+id+'&history='+h;}
+function exportAll(){window.location='/api/export_all?history=0';}
+
+function openReq(procId){document.getElementById('rqProc').value=procId;['rqCat','rqName','rqSeal'].forEach(x=>document.getElementById(x).value='');['rqXb','rqFs','rqYy'].forEach(x=>document.getElementById(x).checked=false);show_('mReq');}
+async function submitReq(){const name=document.getElementById('rqName').value.trim();if(!name){toast('填名称',true);return;}
+  await api('/api/req_add','POST',{product_id:window._pid,process_id:+document.getElementById('rqProc').value,category:document.getElementById('rqCat').value.trim()||'其他',name,
+   needs_xb:document.getElementById('rqXb').checked,needs_fs:document.getElementById('rqFs').checked,needs_yy:document.getElementById('rqYy').checked,seal_party:document.getElementById('rqSeal').value.trim()});
+  close_('mReq');openDetail(window._pid,1);}
+
+async function loadTodo(){const t=await api('/api/todo');const el=document.getElementById('todoBody');
+  if(!t.length){el.innerHTML='<div class="empty">没有待办——所有文件都已到位 🎉</div>';return;}
+  const by={};t.forEach(x=>{(by[x.product]=by[x.product]||[]).push(x);});
+  el.innerHTML=Object.entries(by).map(([pn,items])=>`<div class="card" style="margin-bottom:12px"><h3>${esc(pn)} <span class="badge b-amber">${items.length} 待办</span></h3>
+   <table style="margin-top:8px"><tbody>${items.map(x=>`<tr><td style="width:100px"><span class="badge b-gray">${esc(x.process)}</span></td>
+   <td style="width:120px">${esc(x.category)}</td><td>${esc(x.name)}</td><td><span class="badge b-blue">${esc(x.next_action)}</span></td></tr>`).join('')}</tbody></table></div>`).join('');
+}
+
+async function loadInst(){await loadCfg();const el=document.getElementById('instBody');
+  el.innerHTML=`<table><thead><tr><th>机构</th><th>是否含海报</th></tr></thead><tbody>${CFG.institutions.map(i=>`<tr><td>${esc(i.name)}</td><td>${i.has_poster?'<span class="badge b-green">有</span>':'<span class="badge b-gray">无</span>'}</td></tr>`).join('')}</tbody></table>`;}
+async function addInst(){const name=document.getElementById('instName').value.trim();if(!name){toast('填机构名',true);return;}
+  await api('/api/institutions','POST',{name,has_poster:document.getElementById('instPoster').checked});document.getElementById('instName').value='';document.getElementById('instPoster').checked=false;loadInst();toast('已添加');}
+
+async function loadTpl(){await loadCfg();
+  document.getElementById('tplType').innerHTML=CFG.product_types.map(t=>`<option>${esc(t.name)}</option>`).join('');
+  document.getElementById('tplProc').innerHTML=CFG.processes.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('');
+  loadBp();}
+async function loadBp(){const ptype=document.getElementById('tplType').value;const pid=document.getElementById('tplProc').value;if(!ptype||!pid)return;
+  const items=await api('/api/blueprint?ptype='+encodeURIComponent(ptype)+'&process_id='+pid);const el=document.getElementById('bpBody');
+  const yn=v=>v?'✓':'<span class="na">—</span>';
+  if(!items.length){el.innerHTML='<div class="empty">该「类型×流程」还没配置文件项。点"＋ 新增文件项"，或它会自动套用"通用"模板。</div>';return;}
+  el.innerHTML=`<table><thead><tr><th>排序</th><th>大类</th><th>文件项</th><th>必需</th><th>消保</th><th>法审</th><th>用印</th><th>用印方</th><th>纳入条件</th><th>可复制</th><th></th></tr></thead><tbody>${
+   items.map(i=>`<tr><td>${i.sort}</td><td>${esc(i.category)}</td><td><b>${esc(i.name)}</b></td><td>${yn(i.required)}</td><td>${yn(i.needs_xb)}</td><td>${yn(i.needs_fs)}</td><td>${yn(i.needs_yy)}</td>
+   <td>${esc(i.seal_party||'')}</td><td>${condText(i.cond)}</td><td>${yn(i.repeatable)}</td>
+   <td><span class="link" onclick='editBp(${JSON.stringify(i)})'>编辑</span> · <span class="link" onclick="delBp(${i.id})">删除</span></td></tr>`).join('')}</tbody></table>`;}
+function condText(c){return {always:'总是',poster:'有海报',merge:'合同合并',split:'合同拆分'}[c]||c;}
+function openBp(){document.getElementById('bpTitle').textContent='新增文件项';['bpId','bpCat','bpName','bpSeal'].forEach(x=>document.getElementById(x).value='');
+  ['bpXb','bpFs','bpYy','bpRep'].forEach(x=>document.getElementById(x).checked=false);document.getElementById('bpCond').value='always';document.getElementById('bpSort').value=0;show_('mBp');}
+function editBp(i){document.getElementById('bpTitle').textContent='编辑文件项';document.getElementById('bpId').value=i.id;document.getElementById('bpCat').value=i.category||'';
+  document.getElementById('bpName').value=i.name||'';document.getElementById('bpSeal').value=i.seal_party||'';document.getElementById('bpCond').value=i.cond||'always';document.getElementById('bpSort').value=i.sort||0;
+  document.getElementById('bpXb').checked=!!i.needs_xb;document.getElementById('bpFs').checked=!!i.needs_fs;document.getElementById('bpYy').checked=!!i.needs_yy;document.getElementById('bpRep').checked=!!i.repeatable;show_('mBp');}
+async function saveBp(){const name=document.getElementById('bpName').value.trim();if(!name){toast('填名称',true);return;}
+  const b={id:document.getElementById('bpId').value||null,ptype:document.getElementById('tplType').value,process_id:+document.getElementById('tplProc').value,
+   category:document.getElementById('bpCat').value.trim(),name,required:1,needs_xb:document.getElementById('bpXb').checked,needs_fs:document.getElementById('bpFs').checked,
+   needs_yy:document.getElementById('bpYy').checked,seal_party:document.getElementById('bpSeal').value.trim(),cond:document.getElementById('bpCond').value,
+   repeatable:document.getElementById('bpRep').checked,sort:+document.getElementById('bpSort').value};
+  await api('/api/blueprint_save','POST',b);close_('mBp');loadBp();toast('已保存');}
+async function delBp(id){if(!confirm('删除此模板项？'))return;await api('/api/blueprint_delete','POST',{id});loadBp();}
+async function addType(){const n=prompt('新产品类型名称：');if(!n)return;await api('/api/ptype_add','POST',{name:n.trim()});await loadTpl();document.getElementById('tplType').value=n.trim();loadBp();}
+async function addProc(){const n=prompt('新流程名称：');if(!n)return;await api('/api/process_add','POST',{name:n.trim()});await loadTpl();}
+
+async function openCreate(){await loadCfg();
+  document.getElementById('cType').innerHTML=CFG.product_types.map(t=>`<option>${esc(t.name)}</option>`).join('');
+  const sel=document.getElementById('cInst');sel.innerHTML=CFG.institutions.map(i=>`<option value="${i.id}" data-p="${i.has_poster}">${esc(i.name)}</option>`).join('');
+  sel.onchange=()=>{document.getElementById('cPoster').checked=sel.selectedOptions[0]&&sel.selectedOptions[0].dataset.p==='1';};sel.onchange();
+  document.getElementById('cName').value='';show_('mCreate');}
+async function submitCreate(){const name=document.getElementById('cName').value.trim();if(!name){toast('填产品名',true);return;}
+  const res=await api('/api/products','POST',{name,ptype:document.getElementById('cType').value,institution_id:+document.getElementById('cInst').value,
+   contract_form:document.getElementById('cForm').value,n_supp:+document.getElementById('cSupp').value||1,has_poster:document.getElementById('cPoster').checked});
+  close_('mCreate');toast('已生成清单');openDetail(res.id);}
+
+loadCfg().then(loadDash);
+</script>
+</body>
+</html>
