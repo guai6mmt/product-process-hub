@@ -49,7 +49,20 @@ select.s-退回{border-color:var(--red);color:var(--red)}select.s-送审中{bord
 .reqcard>summary::-webkit-details-marker{display:none}
 .reqcard>summary::before{content:"▸";color:var(--muted);font-size:12px}
 .reqcard[open]>summary::before{content:"▾"}
-.rqname{font-weight:600;flex:1}
+.rqname{font-weight:600;white-space:nowrap}
+.steps{flex:1;display:flex;gap:6px;flex-wrap:wrap;align-items:center;min-width:0}
+.step{font-size:12px;padding:1px 8px;border-radius:20px;white-space:nowrap;display:inline-flex;align-items:center}
+.step .d{width:6px;height:6px;border-radius:50%;background:currentColor;display:inline-block;margin-right:5px}
+.step.ok{background:var(--green-bg);color:var(--green)}
+.step.act{background:var(--blue-bg);color:var(--blue-dk)}
+.step.wip{background:var(--amber-bg);color:var(--amber)}
+.step.bad{background:var(--red-bg);color:var(--red)}
+.step.pend{background:var(--gray-bg);color:var(--muted)}
+.badge.cta{cursor:pointer}
+.badge.cta:hover{background:var(--blue);color:#fff}
+.fblock.flash{animation:flash 1.4s ease}
+@keyframes flash{0%,100%{background:transparent}30%{background:var(--amber-bg)}}
+.rejnote{flex-basis:100%;color:var(--red);background:var(--red-bg);border-radius:6px;padding:5px 9px;font-size:12px;margin-top:6px}
 .rqbody{padding:4px 14px 14px 32px;border-top:1px solid var(--line);background:#fcfcfd}
 .fblock{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px dashed var(--line);flex-wrap:wrap}
 .fblock:last-child{border-bottom:none}
@@ -74,6 +87,27 @@ select.s-退回{border-color:var(--red);color:var(--red)}select.s-送审中{bord
 .toast.show{opacity:1}.toast.err{background:var(--red)}
 .toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
 .empty{text-align:center;color:var(--muted);padding:50px 0}
+.tplmx{display:grid;gap:7px;margin:8px 0 4px}
+.tplmx .mh{font-size:12px;color:var(--muted);padding:2px 8px;align-self:end}
+.tplmx .rl{display:flex;align-items:center;gap:6px;font-weight:600;font-size:13px;padding:8px 4px}
+.mcell{border:1px solid var(--line);border-radius:8px;padding:9px 11px;font-size:13px;background:var(--card);cursor:pointer;display:flex;align-items:center;gap:6px;min-height:42px}
+.mcell:hover{border-color:#c9d2e0;box-shadow:0 1px 6px rgba(0,0,0,.05)}
+.mcell.base{background:#fafbfc}
+.mcell.sel{border:2px solid var(--blue);background:var(--blue-bg)}
+.mcell .n{font-weight:700;font-size:15px;color:var(--blue-dk)}
+.mcell.inh{color:var(--muted);font-size:12px}
+.mcell.empty{color:#b9c0c9}
+.mcell.empty:hover,.mcell.inh:hover{box-shadow:none}
+.bpgrp{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--muted);font-weight:700;margin:16px 0 8px}
+.bpgrp .ln{flex:1;height:1px;background:var(--line)}
+.bpitem{display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid var(--line);border-radius:9px;margin-bottom:7px;background:var(--card)}
+.bpitem.inh{opacity:.78;background:#fafbfc;border-style:dashed}
+.bpitem .nm{font-weight:600;font-size:13px;width:200px;flex-shrink:0}
+.bpitem .pills{display:flex;gap:6px;flex-wrap:wrap;flex:1}
+.bpitem .act{display:flex;gap:10px;flex-shrink:0;white-space:nowrap}
+.pill{display:inline-flex;align-items:center;gap:5px;font-size:12px;padding:2px 9px;border-radius:20px;background:var(--gray-bg);color:var(--muted);border:1px solid var(--line)}
+.pill .dot{width:6px;height:6px;border-radius:50%}
+.pill.cond{background:var(--amber-bg);color:var(--amber);border-color:transparent}
 </style>
 </head>
 <body>
@@ -106,16 +140,9 @@ select.s-退回{border-color:var(--red);color:var(--red)}select.s-送审中{bord
 
   <section id="tpl" class="view">
     <h2>模板管理</h2>
-    <div class="sub">按「产品类型 × 流程」配置标准文件清单；产品类型配不到时自动用"通用"。开产品时据此生成。</div>
-    <div class="toolbar">
-      产品类型 <select id="tplType" onchange="loadBp()"></select>
-      <button class="btn ghost sm" onclick="addType()">＋类型</button>
-      流程 <select id="tplProc" onchange="loadBp()"></select>
-      <button class="btn ghost sm" onclick="addProc()">＋流程</button>
-      <span style="flex:1"></span>
-      <button class="btn" onclick="openBp()">＋ 新增文件项</button>
-    </div>
-    <div id="bpBody"></div>
+    <div class="sub">行＝产品类型，列＝流程。点格子查看/编辑该清单；留空的格子自动继承“通用”。开产品时据此生成。</div>
+    <div id="tplMatrix"></div>
+    <div id="bpBody" style="margin-top:18px"></div>
   </section>
 
   <section id="inst" class="view">
@@ -188,7 +215,7 @@ select.s-退回{border-color:var(--red);color:var(--red)}select.s-送审中{bord
 
 <div class="toast" id="toast"></div>
 <script>
-let CFG={processes:[],product_types:[],institutions:[]};
+let CFG={processes:[],product_types:[],institutions:[]},MX={};
 const api=(u,m,b)=>fetch(u,{method:m||'GET',headers:{'Content-Type':'application/json'},body:b?JSON.stringify(b):undefined}).then(r=>r.json());
 const esc=s=>(s==null?'':''+s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 function toast(m,e){const t=document.getElementById('toast');t.textContent=m;t.className='toast show'+(e?' err':'');setTimeout(()=>t.className='toast',2200);}
@@ -229,12 +256,45 @@ function renderDetail(){
   if(window._tab>=tabs.length)window._tab=0;
   let tabbar=`<div class="tabs">`+tabs.map((t,i)=>`<button class="${i===window._tab?'active':''}" onclick="window._tab=${i};renderDetail()">${esc(t.name)} <span class="badge ${t.ready?'b-green':'b-gray'}" style="margin-left:4px">${t.done}/${t.total}</span></button>`).join('')+`</div>`;
   const t=tabs[window._tab];
+  const onlyTodo=!!window._onlyTodo;
+  const reqs=t.requirements.filter(r=>!onlyTodo||!r.done);
   let body='';
   if(!t.prior_ready)body+=`<div class="banner">⚠ 前序流程尚未备齐（软提示，不影响你继续操作本流程）</div>`;
-  body+=`<div class="toolbar"><span class="muted">${t.name}：${t.done}/${t.total} 到位</span><span style="flex:1"></span><button class="btn ghost sm" onclick="openReq(${t.id})">＋ 增加一项</button></div>`;
-  let cat='';
-  body+=t.requirements.map(r=>{let h='';if(r.category!==cat){cat=r.category;h=`<div class="catlabel">${esc(cat)}</div>`;}return h+reqCard(r);}).join('');
+  body+=`<div class="toolbar"><span class="muted">${t.name}：${t.done}/${t.total} 到位</span>
+    <label class="muted" style="display:flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" ${onlyTodo?'checked':''} onchange="window._onlyTodo=this.checked;renderDetail()"> 只看未到位</label>
+    <button class="btn ghost sm" onclick="expandAll(true)">展开全部</button>
+    <button class="btn ghost sm" onclick="expandAll(false)">收起全部</button>
+    <span style="flex:1"></span><button class="btn ghost sm" onclick="openReq(${t.id})">＋ 增加一项</button></div>`;
+  if(!reqs.length){body+=`<div class="empty">${onlyTodo?'本流程已全部到位 🎉':'该流程没有清单项。'}</div>`;}
+  else{let cat='';body+=reqs.map(r=>{let h='';if(r.category!==cat){cat=r.category;h=`<div class="catlabel">${esc(cat)}</div>`;}return h+reqCard(r);}).join('');}
   document.getElementById('detailBody').innerHTML=head+tabbar+body;
+}
+function expandAll(o){document.querySelectorAll('#detailBody .reqcard').forEach(d=>d.open=o);}
+function summarySteps(r){
+  const mf=(r.files&&r.files['主文件'])||[];
+  const steps=[{name:'主文件',done:mf.length>0}];
+  if(r.needs_xb)steps.push({name:'消保',done:r.xb_status==='通过',rej:r.xb_status==='退回',wip:r.xb_status==='送审中',note:r.xb_note});
+  if(r.needs_fs)steps.push({name:'法审',done:r.fs_status==='通过',rej:r.fs_status==='退回',wip:r.fs_status==='送审中',note:r.fs_note});
+  if(r.needs_yy)steps.push({name:'用印'+(r.seal_party?'·'+r.seal_party:''),done:r.yy_status==='已用印'});
+  const cur=steps.findIndex(s=>!s.done);
+  return steps.map((s,i)=>{
+    if(s.done)return `<span class="step ok">✓ ${esc(s.name)}</span>`;
+    let cls='pend',extra='';
+    if(i===cur){if(s.rej){cls='bad';extra=' 退回';}else if(s.wip){cls='wip';extra=' 送审中';}else cls='act';}
+    const tip=(cls==='bad'&&s.note)?` title="退回意见：${esc(s.note)}"`:'';
+    return `<span class="step ${cls}"${tip}><i class="d"></i>${esc(s.name)}${extra}</span>`;
+  }).join('');
+}
+function findReq(rid){const d=window._d;if(!d)return null;for(const p of d.processes){const r=(p.requirements||[]).find(x=>x.id===rid);if(r)return r;}return null;}
+function cta(rid){const r=findReq(rid);if(!r)return;
+  const mf=(r.files&&r.files['主文件'])||[];
+  if(!mf.length){pickFile(rid,'主文件');return;}
+  let cat=null;
+  if(r.needs_xb&&r.xb_status!=='通过')cat='消保';
+  else if(r.needs_fs&&r.fs_status!=='通过')cat='法审';
+  else if(r.needs_yy&&r.yy_status!=='已用印')cat='用印';
+  const card=document.getElementById('rq'+rid);if(card)card.open=true;
+  if(cat&&card){const blk=card.querySelector('[data-blk="'+cat+'"]');if(blk){blk.scrollIntoView({behavior:'smooth',block:'center'});blk.classList.add('flash');setTimeout(()=>blk.classList.remove('flash'),1400);}}
 }
 function reqCard(r){
   let blocks=fblock(r,'主文件','主文件',null,null);
@@ -242,9 +302,12 @@ function reqCard(r){
   if(r.needs_fs)blocks+=fblock(r,'法审','法审','fs',r.fs_status);
   if(r.needs_yy)blocks+=fblock(r,'用印'+(r.seal_party?'·'+r.seal_party:''),'用印','yy',r.yy_status);
   blocks+=fblock(r,'其他附件','其他',null,null);
-  return `<details class="reqcard ${r.done?'done':''}"><summary>
+  const badge=r.done?`<span class="badge b-green">已到位</span>`
+    :`<span class="badge b-blue cta" title="点击直接处理这一步" onclick="event.preventDefault();event.stopPropagation();cta(${r.id})">${esc(r.next_action)} ›</span>`;
+  return `<details id="rq${r.id}" class="reqcard ${r.done?'done':''}"><summary>
     <span class="rqname">${esc(r.name)}</span>
-    <span class="badge ${r.done?'b-green':'b-blue'}">${esc(r.next_action)}</span></summary>
+    <span class="steps">${summarySteps(r)}</span>
+    ${badge}</summary>
     <div class="rqbody">${blocks}
     <div class="rqfoot"><button class="btn ghost sm" onclick="dupReq(${r.id})">复制此项</button>
     <button class="btn danger sm" onclick="delReq(${r.id})">删除此项</button></div></div></details>`;
@@ -254,11 +317,15 @@ function fblock(r,label,cat,field,val){
   let sel=opts?`<select class="s-${val}" onchange="setRev(${r.id},'${field}',this.value)">${opts.map(o=>`<option ${o===val?'selected':''}>${o}</option>`).join('')}</select>`:'';
   let fs=(r.files[cat]||[]);
   let flist=fs.map(f=>`<span class="fchip">${esc(f.filename)}${cat==='主文件'?` <b>V${f.version_no}</b>`:''} <a class="link" href="/api/file?fid=${f.id}">下载</a><span class="xdel" onclick="delFile(${f.id})">×</span></span>`).join('');
-  return `<div class="fblock"><div class="fblabel">${esc(label)}${sel}</div>
+  let note=(field&&val==='退回'&&r[field+'_note'])?`<div class="rejnote">⚠ 退回意见：${esc(r[field+'_note'])}</div>`:'';
+  return `<div class="fblock" data-blk="${esc(cat)}"><div class="fblabel">${esc(label)}${sel}</div>
     <div class="files">${flist||'<span class="na">无文件</span>'}</div>
-    <button class="btn ghost sm" onclick="pickFile(${r.id},'${cat}')">＋上传</button></div>`;
+    <button class="btn ghost sm" onclick="pickFile(${r.id},'${cat}')">＋上传</button>${note}</div>`;
 }
-async function setRev(rid,field,value){const res=await api('/api/review','POST',{rid,field,value});if(res.error)toast(res.error,true);else toast('已更新');openDetail(window._pid,1);}
+async function setRev(rid,field,value){let note='';
+  if(value==='退回'){note=(prompt('请填写退回意见（必填，会记入留痕并显示在该审查处）：','')||'').trim();
+    if(!note){toast('退回意见必填，未修改',true);openDetail(window._pid,1);return;}}
+  const res=await api('/api/review','POST',{rid,field,value,note});if(res.error)toast(res.error,true);else toast('已更新');openDetail(window._pid,1);}
 function pickFile(rid,cat){const i=document.createElement('input');i.type='file';i.onchange=()=>{const f=i.files[0];if(!f)return;const rd=new FileReader();
   rd.onload=async()=>{const res=await api('/api/upload','POST',{rid,category:cat,filename:f.name,data_base64:rd.result.split(',')[1]});if(res.error)toast(res.error,true);else toast('已上传');openDetail(window._pid,1);};rd.readAsDataURL(f);};i.click();}
 async function delFile(id){if(!confirm('删除此文件？'))return;await api('/api/file_delete','POST',{id});openDetail(window._pid,1);}
@@ -288,31 +355,73 @@ async function addInst(){const name=document.getElementById('instName').value.tr
   await api('/api/institutions','POST',{name,has_poster:document.getElementById('instPoster').checked});document.getElementById('instName').value='';document.getElementById('instPoster').checked=false;loadInst();toast('已添加');}
 
 async function loadTpl(){await loadCfg();
-  document.getElementById('tplType').innerHTML=CFG.product_types.map(t=>`<option>${esc(t.name)}</option>`).join('');
-  document.getElementById('tplProc').innerHTML=CFG.processes.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('');
-  loadBp();}
-async function loadBp(){const ptype=document.getElementById('tplType').value;const pid=document.getElementById('tplProc').value;if(!ptype||!pid)return;
-  const items=await api('/api/blueprint?ptype='+encodeURIComponent(ptype)+'&process_id='+pid);const el=document.getElementById('bpBody');
-  const yn=v=>v?'✓':'<span class="na">—</span>';
-  if(!items.length){el.innerHTML='<div class="empty">该「类型×流程」还没配置文件项。点"＋ 新增文件项"，或它会自动套用"通用"模板。</div>';return;}
-  el.innerHTML=`<table><thead><tr><th>排序</th><th>大类</th><th>文件项</th><th>必需</th><th>消保</th><th>法审</th><th>用印</th><th>用印方</th><th>纳入条件</th><th>可复制</th><th></th></tr></thead><tbody>${
-   items.map(i=>`<tr><td>${i.sort}</td><td>${esc(i.category)}</td><td><b>${esc(i.name)}</b></td><td>${yn(i.required)}</td><td>${yn(i.needs_xb)}</td><td>${yn(i.needs_fs)}</td><td>${yn(i.needs_yy)}</td>
-   <td>${esc(i.seal_party||'')}</td><td>${condText(i.cond)}</td><td>${yn(i.repeatable)}</td>
-   <td><span class="link" onclick='editBp(${JSON.stringify(i)})'>编辑</span> · <span class="link" onclick="delBp(${i.id})">删除</span></td></tr>`).join('')}</tbody></table>`;}
-function condText(c){return {always:'总是',poster:'有海报',merge:'合同合并',split:'合同拆分'}[c]||c;}
+  const mx=await api('/api/blueprint_matrix');MX={};
+  mx.forEach(r=>{(MX[r.ptype]=MX[r.ptype]||{})[r.process_id]=r.count;});
+  if(!window._tplType)window._tplType=(CFG.product_types[0]||{}).name||'通用';
+  if(!window._tplProc)window._tplProc=(CFG.processes[0]||{}).id;
+  renderMatrix();loadBp();}
+function ownCount(pt,pid){return (MX[pt]&&MX[pt][pid])||0;}
+function renderMatrix(){
+  const procs=CFG.processes,types=CFG.product_types,el=document.getElementById('tplMatrix');
+  let g=`<div class="tplmx" style="grid-template-columns:1.2fr repeat(${procs.length},1fr)"><div class="mh"></div>`+
+    procs.map(p=>`<div class="mh">${esc(p.name)}</div>`).join('');
+  types.forEach(t=>{const base=t.name==='通用';
+    g+=`<div class="rl">${esc(t.name)}${base?' <span class="badge b-gray">基线</span>':''}</div>`;
+    procs.forEach(p=>{const own=ownCount(t.name,p.id),
+      sel=(t.name===window._tplType&&p.id===window._tplProc)?' sel':'';
+      let cls,inner;
+      if(own>0){cls='mcell'+(base?' base':'')+sel;inner=`<span class="n">${own}</span> 项`;}
+      else if(base){cls='mcell base empty'+sel;inner='未配置';}
+      else{cls='mcell inh'+sel;inner='↑ 继承通用';}
+      g+=`<div class="${cls}" data-pt="${esc(t.name)}" data-pid="${p.id}">${inner}</div>`;});});
+  g+=`</div><div style="display:flex;gap:18px;align-items:center;font-size:11px;color:var(--muted);margin-top:8px;flex-wrap:wrap">
+    <span><b style="color:var(--blue-dk)">N 项</b> 已配置</span><span>↑ 继承通用（可点开覆盖）</span><span>未配置＝通用本身也为空</span>
+    <span style="flex:1"></span><button class="btn ghost sm" onclick="addType()">＋ 产品类型</button><button class="btn ghost sm" onclick="addProc()">＋ 流程</button></div>`;
+  el.innerHTML=g;
+  el.onclick=e=>{const c=e.target.closest('.mcell');if(c)pickCell(c.dataset.pt,+c.dataset.pid);};}
+function pickCell(pt,pid){window._tplType=pt;window._tplProc=pid;renderMatrix();loadBp();}
+async function loadBp(){const ptype=window._tplType,pid=window._tplProc,el=document.getElementById('bpBody');
+  if(!ptype||!pid){el.innerHTML='';return;}
+  const procName=(CFG.processes.find(p=>p.id===pid)||{}).name||'';
+  let items=await api('/api/blueprint?ptype='+encodeURIComponent(ptype)+'&process_id='+pid),inherited=false;
+  if(!items.length&&ptype!=='通用'){inherited=true;items=await api('/api/blueprint?ptype='+encodeURIComponent('通用')+'&process_id='+pid);}
+  let head=`<div class="toolbar"><span style="font-size:16px;font-weight:600">${esc(ptype)} · ${esc(procName)}</span>
+    <span class="badge ${items.length?'b-blue':'b-gray'}">${items.length} 项</span><span style="flex:1"></span>
+    <button class="btn" onclick="openBp()">＋ 新增文件项</button></div>`;
+  if(inherited)head+=`<div class="banner">本「类型 × 流程」未单独配置，下方灰显为继承自【通用】的清单。点某项“在此覆盖”即可改为本类型专属。</div>`;
+  if(!items.length){el.innerHTML=head+'<div class="empty">通用模板在该流程也没有文件项。点“＋ 新增文件项”添加。</div>';return;}
+  let cat='',body='';
+  items.forEach(i=>{if(i.category!==cat){cat=i.category;const cnt=items.filter(x=>x.category===cat).length;
+      body+=`<div class="bpgrp"><span>${esc(cat||'未分类')}</span><span class="ln"></span><span style="font-weight:400">${cnt} 项</span></div>`;}
+    body+=bpItem(i,inherited);});
+  el.innerHTML=head+body;}
+function pill(label,color){return `<span class="pill"><span class="dot" style="background:${color}"></span>${label}</span>`;}
+function bpItem(i,inherited){let p='';
+  if(i.needs_xb)p+=pill('消保','#2f5fcf');
+  if(i.needs_fs)p+=pill('法审','#8a4fd0');
+  if(i.needs_yy)p+=pill('用印'+(i.seal_party?' · '+esc(i.seal_party):''),'#c47d12');
+  if(i.cond&&i.cond!=='always')p+=`<span class="pill cond">${condText(i.cond)}</span>`;
+  if(i.repeatable)p+=`<span class="pill">可多份</span>`;
+  if(!i.required)p+=`<span class="pill">可选</span>`;
+  if(!p)p='<span class="na">无审查要求</span>';
+  const act=inherited?`<span class="link" onclick='overrideBp(${JSON.stringify(i)})'>在此覆盖</span>`
+    :`<span class="link" onclick='editBp(${JSON.stringify(i)})'>编辑</span> · <span class="link" onclick="delBp(${i.id})">删除</span>`;
+  return `<div class="bpitem ${inherited?'inh':''}"><span class="nm">${esc(i.name)}</span><span class="pills">${p}</span><span class="act">${act}</span></div>`;}
+function condText(c){return {always:'总是',poster:'有海报时',merge:'仅合并版',split:'仅拆分版'}[c]||c;}
 function openBp(){document.getElementById('bpTitle').textContent='新增文件项';['bpId','bpCat','bpName','bpSeal'].forEach(x=>document.getElementById(x).value='');
   ['bpXb','bpFs','bpYy','bpRep'].forEach(x=>document.getElementById(x).checked=false);document.getElementById('bpCond').value='always';document.getElementById('bpSort').value=0;show_('mBp');}
 function editBp(i){document.getElementById('bpTitle').textContent='编辑文件项';document.getElementById('bpId').value=i.id;document.getElementById('bpCat').value=i.category||'';
   document.getElementById('bpName').value=i.name||'';document.getElementById('bpSeal').value=i.seal_party||'';document.getElementById('bpCond').value=i.cond||'always';document.getElementById('bpSort').value=i.sort||0;
   document.getElementById('bpXb').checked=!!i.needs_xb;document.getElementById('bpFs').checked=!!i.needs_fs;document.getElementById('bpYy').checked=!!i.needs_yy;document.getElementById('bpRep').checked=!!i.repeatable;show_('mBp');}
 async function saveBp(){const name=document.getElementById('bpName').value.trim();if(!name){toast('填名称',true);return;}
-  const b={id:document.getElementById('bpId').value||null,ptype:document.getElementById('tplType').value,process_id:+document.getElementById('tplProc').value,
+  const b={id:document.getElementById('bpId').value||null,ptype:window._tplType,process_id:window._tplProc,
    category:document.getElementById('bpCat').value.trim(),name,required:1,needs_xb:document.getElementById('bpXb').checked,needs_fs:document.getElementById('bpFs').checked,
    needs_yy:document.getElementById('bpYy').checked,seal_party:document.getElementById('bpSeal').value.trim(),cond:document.getElementById('bpCond').value,
    repeatable:document.getElementById('bpRep').checked,sort:+document.getElementById('bpSort').value};
-  await api('/api/blueprint_save','POST',b);close_('mBp');loadBp();toast('已保存');}
-async function delBp(id){if(!confirm('删除此模板项？'))return;await api('/api/blueprint_delete','POST',{id});loadBp();}
-async function addType(){const n=prompt('新产品类型名称：');if(!n)return;await api('/api/ptype_add','POST',{name:n.trim()});await loadTpl();document.getElementById('tplType').value=n.trim();loadBp();}
+  await api('/api/blueprint_save','POST',b);close_('mBp');loadTpl();toast('已保存');}
+function overrideBp(i){editBp(i);document.getElementById('bpId').value='';document.getElementById('bpTitle').textContent='在【'+window._tplType+'】覆盖：'+(i.name||'');}
+async function delBp(id){if(!confirm('删除此模板项？'))return;await api('/api/blueprint_delete','POST',{id});loadTpl();}
+async function addType(){const n=prompt('新产品类型名称：');if(!n)return;await api('/api/ptype_add','POST',{name:n.trim()});window._tplType=n.trim();await loadTpl();}
 async function addProc(){const n=prompt('新流程名称：');if(!n)return;await api('/api/process_add','POST',{name:n.trim()});await loadTpl();}
 
 async function openCreate(){await loadCfg();

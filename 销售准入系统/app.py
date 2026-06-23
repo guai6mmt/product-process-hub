@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS requirement(id INTEGER PRIMARY KEY AUTOINCREMENT, pro
   needs_xb INTEGER, needs_fs INTEGER, needs_yy INTEGER, xb_status TEXT, fs_status TEXT, yy_status TEXT, sort INTEGER DEFAULT 0);
 CREATE TABLE IF NOT EXISTS docfile(id INTEGER PRIMARY KEY AUTOINCREMENT, requirement_id INTEGER, category TEXT,
   version_no INTEGER DEFAULT 1, parent_id INTEGER, filename TEXT, filepath TEXT, size INTEGER, uploaded_at TEXT, note TEXT DEFAULT '');
+CREATE TABLE IF NOT EXISTS review_log(id INTEGER PRIMARY KEY AUTOINCREMENT, requirement_id INTEGER, field TEXT, value TEXT, note TEXT DEFAULT '', at TEXT);
 """
 
 SEED_PROCESSES = [("产品准入", 1), ("销售准入", 2), ("上架发售", 3), ("存续管理", 4)]
@@ -192,6 +193,9 @@ def req_full(conn, r):
     d["done"] = (d["next_action"] == "已到位")
     pr = conn.execute("SELECT name FROM process WHERE id=?", (r["process_id"],)).fetchone()
     d["process_name"] = pr["name"] if pr else ""
+    for fld in ("xb", "fs", "yy"):
+        lg = conn.execute("SELECT note FROM review_log WHERE requirement_id=? AND field=? ORDER BY id DESC LIMIT 1", (r["id"], fld)).fetchone()
+        d[fld + "_note"] = lg["note"] if lg else ""
     return d
 
 
@@ -298,6 +302,12 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/blueprint":
                 conn = db()
                 rows = [dict(r) for r in conn.execute("SELECT * FROM blueprint_item WHERE ptype=? AND process_id=? ORDER BY sort,id", (q["ptype"][0], int(q["process_id"][0])))]
+                conn.close()
+                return self._json(rows)
+            if path == "/api/blueprint_matrix":
+                conn = db()
+                rows = [{"ptype": r["ptype"], "process_id": r["process_id"], "count": r["c"]}
+                        for r in conn.execute("SELECT ptype, process_id, COUNT(*) c FROM blueprint_item GROUP BY ptype, process_id")]
                 conn.close()
                 return self._json(rows)
             if path == "/api/file":
@@ -410,6 +420,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def _review(self, conn, b):
         rid, field, value = int(b["rid"]), b["field"], b["value"]
+        note = (b.get("note") or "").strip()
         col = {"xb": "xb_status", "fs": "fs_status", "yy": "yy_status"}[field]
         allowed = YY if field == "yy" else XB_FS
         if value not in allowed:
@@ -419,10 +430,13 @@ class Handler(BaseHTTPRequestHandler):
             conn.close(); return self._json({"error": "文件不存在"}, 404)
         if not {"xb": r["needs_xb"], "fs": r["needs_fs"], "yy": r["needs_yy"]}[field]:
             conn.close(); return self._json({"error": "该文件无需此审查"}, 400)
+        if value == "退回" and not note:
+            conn.close(); return self._json({"error": "退回必须填写退回意见"}, 400)
         ok, msg = can_set(conn, r, field, value)
         if not ok:
             conn.close(); return self._json({"error": msg}, 400)
         conn.execute("UPDATE requirement SET %s=? WHERE id=?" % col, (value, rid))
+        conn.execute("INSERT INTO review_log(requirement_id,field,value,note,at) VALUES(?,?,?,?,?)", (rid, field, value, note, now()))
         conn.commit(); conn.close(); return self._json({"ok": True})
 
     def _upload(self, conn, b):
