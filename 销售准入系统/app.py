@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS requirement(id INTEGER PRIMARY KEY AUTOINCREMENT, pro
 CREATE TABLE IF NOT EXISTS docfile(id INTEGER PRIMARY KEY AUTOINCREMENT, requirement_id INTEGER, category TEXT,
   version_no INTEGER DEFAULT 1, parent_id INTEGER, filename TEXT, filepath TEXT, size INTEGER, uploaded_at TEXT, note TEXT DEFAULT '');
 CREATE TABLE IF NOT EXISTS review_log(id INTEGER PRIMARY KEY AUTOINCREMENT, requirement_id INTEGER, field TEXT, value TEXT, note TEXT DEFAULT '', at TEXT);
+CREATE TABLE IF NOT EXISTS process_mirror(product_id INTEGER, process_id INTEGER, source_process_id INTEGER, PRIMARY KEY(product_id, process_id));
 """
 
 SEED_PROCESSES = [("产品准入", 1), ("销售准入", 2), ("上架发售", 3), ("存续管理", 4)]
@@ -76,6 +77,12 @@ def pid_of(conn, name):
     return r["id"] if r else None
 
 
+def mirror_map(conn, product_id):
+    """{被共用的流程id: 来源流程id}（该产品下，哪些流程改用了别的流程的文件）"""
+    return {r["process_id"]: r["source_process_id"] for r in conn.execute(
+        "SELECT process_id, source_process_id FROM process_mirror WHERE product_id=?", (product_id,))}
+
+
 def init_db():
     conn = db()
     conn.executescript(SCHEMA)
@@ -85,9 +92,6 @@ def init_db():
     if conn.execute("SELECT COUNT(*) FROM product_type").fetchone()[0] == 0:
         for n in SEED_TYPES:
             conn.execute("INSERT INTO product_type(name) VALUES(?)", (n,))
-    if conn.execute("SELECT COUNT(*) FROM institution").fetchone()[0] == 0:
-        conn.execute("INSERT INTO institution(name,has_poster) VALUES(?,?)", ("示例机构A（有海报）", 1))
-        conn.execute("INSERT INTO institution(name,has_poster) VALUES(?,?)", ("示例机构B（无海报）", 0))
     if conn.execute("SELECT COUNT(*) FROM blueprint_item").fetchone()[0] == 0:
         for t in SEED_BP:
             conn.execute("""INSERT INTO blueprint_item(ptype,process_id,category,name,required,needs_xb,needs_fs,needs_yy,seal_party,cond,repeatable,sort)
@@ -200,12 +204,11 @@ def req_full(conn, r):
 
 
 def product_overview(conn, p):
-    reqs = conn.execute("SELECT * FROM requirement WHERE product_id=? AND required=1", (p["id"],)).fetchall()
+    mm = mirror_map(conn, p["id"])
+    reqs = [r for r in conn.execute("SELECT * FROM requirement WHERE product_id=? AND required=1", (p["id"],)).fetchall() if r["process_id"] not in mm]
     total = len(reqs)
     done = sum(1 for r in reqs if next_action(conn, r) == "已到位")
     d = dict(p)
-    inst = conn.execute("SELECT name FROM institution WHERE id=?", (p["institution_id"],)).fetchone()
-    d["institution_name"] = inst["name"] if inst else ""
     d["total"], d["done"] = total, done
     d["progress"] = round(done * 100 / total) if total else 0
     d["ready"] = (total > 0 and done == total)
@@ -227,7 +230,10 @@ def build_zip(conn, products, history):
     w.writerow(["产品", "流程", "大类", "文件项", "类别", "文件名", "版本", "上传时间", "消保", "法审", "用印", "是否到位"])
     for p in products:
         proot = safe(p["name"])
+        mm = mirror_map(conn, p["id"])
         for pr in conn.execute("SELECT * FROM process ORDER BY sort,id").fetchall():
+            if pr["id"] in mm:
+                continue
             reqs = conn.execute("SELECT * FROM requirement WHERE product_id=? AND process_id=? ORDER BY sort,id", (p["id"], pr["id"])).fetchall()
             for r in reqs:
                 base = "%s/%s/%s/%s" % (proot, safe(pr["name"]), safe(r["category"]), safe(r["name"]))
@@ -286,8 +292,7 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/config":
                 conn = db()
                 out = {"processes": [dict(r) for r in conn.execute("SELECT * FROM process ORDER BY sort,id")],
-                       "product_types": [dict(r) for r in conn.execute("SELECT * FROM product_type ORDER BY id")],
-                       "institutions": [dict(r) for r in conn.execute("SELECT * FROM institution ORDER BY id")]}
+                       "product_types": [dict(r) for r in conn.execute("SELECT * FROM product_type ORDER BY id")]}
                 conn.close()
                 return self._json(out)
             if path == "/api/products":
@@ -326,16 +331,27 @@ class Handler(BaseHTTPRequestHandler):
             b = self._body()
             conn = db()
             if path == "/api/products":
-                iid = b.get("institution_id")
-                pidv = conn.execute("INSERT INTO product(name,ptype,institution_id,contract_form,created_at) VALUES(?,?,?,?,?)",
-                                    (b.get("name", "").strip(), b.get("ptype", "通用"), iid, b.get("contract_form", "合并"), now())).lastrowid
+                pidv = conn.execute("INSERT INTO product(name,ptype,contract_form,created_at) VALUES(?,?,?,?)",
+                                    (b.get("name", "").strip(), b.get("ptype", "通用"), b.get("contract_form", "合并"), now())).lastrowid
                 instantiate(conn, pidv, b.get("ptype", "通用"), int(b.get("n_supp", 1)), bool(b.get("has_poster")), b.get("contract_form", "合并"))
                 conn.commit(); conn.close(); return self._json({"id": pidv})
             if path == "/api/product_delete":
                 pidv = int(b["id"])
                 conn.execute("DELETE FROM docfile WHERE requirement_id IN (SELECT id FROM requirement WHERE product_id=?)", (pidv,))
                 conn.execute("DELETE FROM requirement WHERE product_id=?", (pidv,))
+                conn.execute("DELETE FROM process_mirror WHERE product_id=?", (pidv,))
                 conn.execute("DELETE FROM product WHERE id=?", (pidv,))
+                conn.commit(); conn.close(); return self._json({"ok": True})
+            if path == "/api/process_mirror_set":
+                prod = int(b["product_id"]); proc = int(b["process_id"]); src = int(b["source_process_id"])
+                if src == proc:
+                    conn.close(); return self._json({"error": "不能与自己共用"}, 400)
+                if conn.execute("SELECT 1 FROM process_mirror WHERE product_id=? AND process_id=?", (prod, src)).fetchone():
+                    conn.close(); return self._json({"error": "所选来源流程本身在共用别的流程，请改选来源"}, 400)
+                conn.execute("INSERT OR REPLACE INTO process_mirror(product_id,process_id,source_process_id) VALUES(?,?,?)", (prod, proc, src))
+                conn.commit(); conn.close(); return self._json({"ok": True})
+            if path == "/api/process_mirror_clear":
+                conn.execute("DELETE FROM process_mirror WHERE product_id=? AND process_id=?", (int(b["product_id"]), int(b["process_id"])))
                 conn.commit(); conn.close(); return self._json({"ok": True})
             if path == "/api/review":
                 return self._review(conn, b)
@@ -368,20 +384,49 @@ class Handler(BaseHTTPRequestHandler):
                 conn.execute("DELETE FROM docfile WHERE requirement_id=?", (rid,))
                 conn.execute("DELETE FROM requirement WHERE id=?", (rid,))
                 conn.commit(); conn.close(); return self._json({"ok": True})
-            if path == "/api/institutions":
-                conn.execute("INSERT INTO institution(name,has_poster) VALUES(?,?)", (b.get("name", "").strip(), 1 if b.get("has_poster") else 0))
-                conn.commit(); conn.close(); return self._json({"ok": True})
             if path == "/api/process_add":
                 mx = conn.execute("SELECT MAX(sort) m FROM process").fetchone()["m"] or 0
                 conn.execute("INSERT INTO process(name,sort) VALUES(?,?)", (b.get("name", "").strip(), mx + 1))
                 conn.commit(); conn.close(); return self._json({"ok": True})
+            if path == "/api/process_delete":
+                pid = int(b["id"])
+                for f in conn.execute("SELECT filepath FROM docfile WHERE requirement_id IN (SELECT id FROM requirement WHERE process_id=?)", (pid,)).fetchall():
+                    try:
+                        os.remove(f["filepath"])
+                    except Exception:
+                        pass
+                conn.execute("DELETE FROM docfile WHERE requirement_id IN (SELECT id FROM requirement WHERE process_id=?)", (pid,))
+                conn.execute("DELETE FROM review_log WHERE requirement_id IN (SELECT id FROM requirement WHERE process_id=?)", (pid,))
+                conn.execute("DELETE FROM requirement WHERE process_id=?", (pid,))
+                conn.execute("DELETE FROM blueprint_item WHERE process_id=?", (pid,))
+                conn.execute("DELETE FROM process_mirror WHERE process_id=? OR source_process_id=?", (pid, pid))
+                conn.execute("DELETE FROM process WHERE id=?", (pid,))
+                conn.commit(); conn.close(); return self._json({"ok": True})
             if path == "/api/ptype_add":
                 conn.execute("INSERT INTO product_type(name) VALUES(?)", (b.get("name", "").strip(),))
+                conn.commit(); conn.close(); return self._json({"ok": True})
+            if path == "/api/ptype_delete":
+                nm = b.get("name", "").strip()
+                if nm and nm != "通用":
+                    conn.execute("DELETE FROM blueprint_item WHERE ptype=?", (nm,))
+                    conn.execute("DELETE FROM product_type WHERE name=?", (nm,))
                 conn.commit(); conn.close(); return self._json({"ok": True})
             if path == "/api/blueprint_save":
                 return self._bp_save(conn, b)
             if path == "/api/blueprint_delete":
                 conn.execute("DELETE FROM blueprint_item WHERE id=?", (int(b["id"]),))
+                conn.commit(); conn.close(); return self._json({"ok": True})
+            if path == "/api/blueprint_fork":
+                pt = b.get("ptype", "").strip(); pid = int(b["process_id"])
+                if pt and pt != "通用" and conn.execute("SELECT COUNT(*) FROM blueprint_item WHERE ptype=? AND process_id=?", (pt, pid)).fetchone()[0] == 0:
+                    for it in conn.execute("SELECT * FROM blueprint_item WHERE ptype='通用' AND process_id=? ORDER BY sort,id", (pid,)).fetchall():
+                        conn.execute("""INSERT INTO blueprint_item(ptype,process_id,category,name,required,needs_xb,needs_fs,needs_yy,seal_party,cond,repeatable,sort)
+                            VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""", (pt, pid, it["category"], it["name"], it["required"], it["needs_xb"], it["needs_fs"], it["needs_yy"], it["seal_party"], it["cond"], it["repeatable"], it["sort"]))
+                conn.commit(); conn.close(); return self._json({"ok": True})
+            if path == "/api/blueprint_clear":
+                pt = b.get("ptype", "").strip(); pid = int(b["process_id"])
+                if pt and pt != "通用":
+                    conn.execute("DELETE FROM blueprint_item WHERE ptype=? AND process_id=?", (pt, pid))
                 conn.commit(); conn.close(); return self._json({"ok": True})
             conn.close(); self.send_error(404)
         except Exception as e:
@@ -403,16 +448,22 @@ class Handler(BaseHTTPRequestHandler):
         if not p:
             conn.close(); return self._json({"error": "产品不存在"}, 404)
         d = product_overview(conn, p)
+        mm = mirror_map(conn, pid)
+        pnames = {r["id"]: r["name"] for r in conn.execute("SELECT id,name FROM process")}
         procs = []
         prior_done = True
         for pr in conn.execute("SELECT * FROM process ORDER BY sort,id").fetchall():
-            reqs = conn.execute("SELECT * FROM requirement WHERE product_id=? AND process_id=? ORDER BY sort,id", (pid, pr["id"])).fetchall()
-            if not reqs:
+            src = mm.get(pr["id"], pr["id"])
+            mirrored = pr["id"] in mm
+            reqs = conn.execute("SELECT * FROM requirement WHERE product_id=? AND process_id=? ORDER BY sort,id", (pid, src)).fetchall()
+            if not reqs and not mirrored:
                 continue
             full = [req_full(conn, r) for r in reqs]
             done = sum(1 for x in full if x["done"])
             procs.append({"id": pr["id"], "name": pr["name"], "requirements": full, "total": len(full),
-                          "done": done, "ready": done == len(full), "prior_ready": prior_done})
+                          "done": done, "ready": done == len(full), "prior_ready": prior_done,
+                          "mirrored_from": pnames.get(src) if mirrored else None,
+                          "mirror_source_id": src if mirrored else None})
             prior_done = prior_done and (done == len(full))
         d["processes"] = procs
         conn.close()
@@ -465,7 +516,10 @@ class Handler(BaseHTTPRequestHandler):
         conn = db()
         out = []
         for p in conn.execute("SELECT * FROM product ORDER BY id DESC").fetchall():
+            mm = mirror_map(conn, p["id"])
             for r in conn.execute("SELECT * FROM requirement WHERE product_id=? AND required=1 ORDER BY process_id,sort,id", (p["id"],)).fetchall():
+                if r["process_id"] in mm:
+                    continue
                 na = next_action(conn, r)
                 if na != "已到位":
                     pr = conn.execute("SELECT name FROM process WHERE id=?", (r["process_id"],)).fetchone()

@@ -7,3 +7,7 @@ __pycache__/
 
 # Local test/log artifacts.
 *.log
+
+# 本地一键脚本（个人电脑专用，含本机路径，不上传）
+一键更新.bat
+一键上传.bat

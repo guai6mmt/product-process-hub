@@ -117,7 +117,6 @@ select.s-退回{border-color:var(--red);color:var(--red)}select.s-送审中{bord
     <button data-v="dashboard" class="active" onclick="nav('dashboard')">驾驶舱</button>
     <button data-v="todo" onclick="nav('todo')">今日待办</button>
     <button data-v="tpl" onclick="nav('tpl')">模板管理</button>
-    <button data-v="inst" onclick="nav('inst')">机构</button>
   </nav>
   <button class="btn ghost" onclick="exportAll()">导出全部</button>
   <button class="btn" onclick="openCreate()">＋ 一键开产品</button>
@@ -145,24 +144,12 @@ select.s-退回{border-color:var(--red);color:var(--red)}select.s-送审中{bord
     <div id="bpBody" style="margin-top:18px"></div>
   </section>
 
-  <section id="inst" class="view">
-    <h2>机构</h2><div class="sub">机构的"是否有海报"会作为开产品时的默认值。</div>
-    <div id="instBody"></div>
-    <div class="card" style="max-width:420px;margin-top:14px">
-      <div class="field"><label>机构名称</label><input type="text" id="instName" placeholder="如：某某银行"></div>
-      <div class="field"><label><input type="checkbox" id="instPoster"> 该机构有海报</label></div>
-      <button class="btn" onclick="addInst()">添加机构</button>
-    </div>
-  </section>
 </main>
 
 <div class="modal-bg" id="mCreate"><div class="modal">
   <h3>一键开产品</h3>
   <div class="field"><label>产品名称 *</label><input type="text" id="cName" placeholder="如：XX私募证券投资基金一期"></div>
-  <div class="row">
-    <div class="field"><label>产品类型</label><select id="cType"></select></div>
-    <div class="field"><label>代销机构</label><select id="cInst"></select></div>
-  </div>
+  <div class="field"><label>产品类型</label><select id="cType"></select></div>
   <div class="row">
     <div class="field"><label>补充协议份数</label><input type="number" id="cSupp" min="1" value="1"></div>
     <div class="field"><label>合同形态</label><select id="cForm"><option value="合并">合并（1份）</option><option value="拆分">拆分（3份）</option></select></div>
@@ -215,7 +202,7 @@ select.s-退回{border-color:var(--red);color:var(--red)}select.s-送审中{bord
 
 <div class="toast" id="toast"></div>
 <script>
-let CFG={processes:[],product_types:[],institutions:[]},MX={};
+let CFG={processes:[],product_types:[]},MX={};
 const api=(u,m,b)=>fetch(u,{method:m||'GET',headers:{'Content-Type':'application/json'},body:b?JSON.stringify(b):undefined}).then(r=>r.json());
 const esc=s=>(s==null?'':''+s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 function toast(m,e){const t=document.getElementById('toast');t.textContent=m;t.className='toast show'+(e?' err':'');setTimeout(()=>t.className='toast',2200);}
@@ -225,14 +212,14 @@ async function loadCfg(){CFG=await api('/api/config');}
 
 function nav(v){document.querySelectorAll('.view').forEach(s=>s.classList.remove('active'));document.getElementById(v).classList.add('active');
  document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.dataset.v===v));
- if(v==='dashboard')loadDash();if(v==='todo')loadTodo();if(v==='inst')loadInst();if(v==='tpl')loadTpl();}
+ if(v==='dashboard')loadDash();if(v==='todo')loadTodo();if(v==='tpl')loadTpl();}
 function navDetail(){document.querySelectorAll('.view').forEach(s=>s.classList.remove('active'));document.getElementById('detail').classList.add('active');document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));}
 
 async function loadDash(){
   const ps=await api('/api/products');const el=document.getElementById('cards');
   if(!ps.length){el.innerHTML='<div class="empty">还没有产品。点右上角"＋ 一键开产品"开始。</div>';return;}
   el.innerHTML=ps.map(p=>`<div class="card click" onclick="openDetail(${p.id})">
-    <h3>${esc(p.name)}</h3><div class="meta">${esc(p.ptype||'—')} · ${esc(p.institution_name||'—')}</div>
+    <h3>${esc(p.name)}</h3><div class="meta">${esc(p.ptype||'—')}</div>
     <div class="bar"><i class="${p.ready?'full':''}" style="width:${p.progress}%"></i></div>
     <div style="display:flex;justify-content:space-between;align-items:center">
       <span class="muted">${p.done}/${p.total} 项到位 · ${p.progress}%</span>
@@ -248,7 +235,7 @@ function renderDetail(){
   const d=window._d;const tabs=d.processes;
   let head=`<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">
     <div><h2 style="display:inline">${esc(d.name)}</h2> <span class="badge ${d.ready?'b-green':'b-amber'}">${d.ready?'全部备齐':'进行中'}</span>
-    <div class="sub">${esc(d.ptype||'—')} · ${esc(d.institution_name||'—')} · 合同:${esc(d.contract_form)} · 总进度 ${d.done}/${d.total}（${d.progress}%）</div></div>
+    <div class="sub">${esc(d.ptype||'—')} · 合同:${esc(d.contract_form)} · 总进度 ${d.done}/${d.total}（${d.progress}%）</div></div>
     <div style="display:flex;gap:8px"><button class="btn ghost sm" onclick="exportOne(${d.id},0)">导出文件包</button>
     <button class="btn ghost sm" onclick="exportOne(${d.id},1)">导出(含历史)</button>
     <button class="btn danger sm" onclick="delProduct(${d.id})">删除产品</button></div></div>`;
@@ -257,14 +244,18 @@ function renderDetail(){
   let tabbar=`<div class="tabs">`+tabs.map((t,i)=>`<button class="${i===window._tab?'active':''}" onclick="window._tab=${i};renderDetail()">${esc(t.name)} <span class="badge ${t.ready?'b-green':'b-gray'}" style="margin-left:4px">${t.done}/${t.total}</span></button>`).join('')+`</div>`;
   const t=tabs[window._tab];
   const onlyTodo=!!window._onlyTodo;
+  window._mir=!!t.mirrored_from;
   const reqs=t.requirements.filter(r=>!onlyTodo||!r.done);
   let body='';
   if(!t.prior_ready)body+=`<div class="banner">⚠ 前序流程尚未备齐（软提示，不影响你继续操作本流程）</div>`;
+  if(t.mirrored_from)body+=`<div class="banner" style="background:var(--blue-bg);color:var(--blue-dk)">🔗 本流程正与【${esc(t.mirrored_from)}】<b>共用同一套文件</b>，上传与消保/法审/用印都会自动同步；增删文件项请到【${esc(t.mirrored_from)}】里操作。 <span class="link" style="margin-left:6px" onclick="clearMirror(${t.id})">取消共用</span></div>`;
+  const others=tabs.filter(x=>x.id!==t.id&&!x.mirrored_from);
+  const mirCtl=(!t.mirrored_from&&others.length)?`<select onchange="if(this.value)setMirror(${t.id},+this.value)"><option value="">🔗 共用其他流程的文件…</option>${others.map(o=>`<option value="${o.id}">共用【${esc(o.name)}】的文件</option>`).join('')}</select>`:'';
   body+=`<div class="toolbar"><span class="muted">${t.name}：${t.done}/${t.total} 到位</span>
     <label class="muted" style="display:flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" ${onlyTodo?'checked':''} onchange="window._onlyTodo=this.checked;renderDetail()"> 只看未到位</label>
     <button class="btn ghost sm" onclick="expandAll(true)">展开全部</button>
     <button class="btn ghost sm" onclick="expandAll(false)">收起全部</button>
-    <span style="flex:1"></span><button class="btn ghost sm" onclick="openReq(${t.id})">＋ 增加一项</button></div>`;
+    <span style="flex:1"></span>${mirCtl}${t.mirrored_from?'':`<button class="btn ghost sm" onclick="openReq(${t.id})">＋ 增加一项</button>`}</div>`;
   if(!reqs.length){body+=`<div class="empty">${onlyTodo?'本流程已全部到位 🎉':'该流程没有清单项。'}</div>`;}
   else{let cat='';body+=reqs.map(r=>{let h='';if(r.category!==cat){cat=r.category;h=`<div class="catlabel">${esc(cat)}</div>`;}return h+reqCard(r);}).join('');}
   document.getElementById('detailBody').innerHTML=head+tabbar+body;
@@ -304,13 +295,13 @@ function reqCard(r){
   blocks+=fblock(r,'其他附件','其他',null,null);
   const badge=r.done?`<span class="badge b-green">已到位</span>`
     :`<span class="badge b-blue cta" title="点击直接处理这一步" onclick="event.preventDefault();event.stopPropagation();cta(${r.id})">${esc(r.next_action)} ›</span>`;
+  const foot=window._mir?'':`<div class="rqfoot"><button class="btn ghost sm" onclick="dupReq(${r.id})">复制此项</button>
+    <button class="btn danger sm" onclick="delReq(${r.id})">删除此项</button></div>`;
   return `<details id="rq${r.id}" class="reqcard ${r.done?'done':''}"><summary>
     <span class="rqname">${esc(r.name)}</span>
     <span class="steps">${summarySteps(r)}</span>
     ${badge}</summary>
-    <div class="rqbody">${blocks}
-    <div class="rqfoot"><button class="btn ghost sm" onclick="dupReq(${r.id})">复制此项</button>
-    <button class="btn danger sm" onclick="delReq(${r.id})">删除此项</button></div></div></details>`;
+    <div class="rqbody">${blocks}${foot}</div></details>`;
 }
 function fblock(r,label,cat,field,val){
   let opts=field?(field==='yy'?['待用印','已用印']:['未启动','送审中','通过','退回']):null;
@@ -332,6 +323,10 @@ async function delFile(id){if(!confirm('删除此文件？'))return;await api('/
 async function dupReq(id){await api('/api/req_duplicate','POST',{id});toast('已复制');openDetail(window._pid,1);}
 async function delReq(id){if(!confirm('删除此项及其文件？'))return;await api('/api/req_delete','POST',{id});openDetail(window._pid,1);}
 async function delProduct(id){if(!confirm('确认删除整个产品？'))return;await api('/api/product_delete','POST',{id});nav('dashboard');}
+async function setMirror(procId,srcId){const res=await api('/api/process_mirror_set','POST',{product_id:window._pid,process_id:procId,source_process_id:srcId});
+  if(res.error)toast(res.error,true);else toast('已设为共用同一套文件');openDetail(window._pid,1);}
+async function clearMirror(procId){if(!confirm('取消共用后，本流程恢复使用自己的文件清单（它原本的清单仍保留着）。确定？'))return;
+  await api('/api/process_mirror_clear','POST',{product_id:window._pid,process_id:procId});toast('已取消共用');openDetail(window._pid,1);}
 function exportOne(id,h){window.location='/api/export?id='+id+'&history='+h;}
 function exportAll(){window.location='/api/export_all?history=0';}
 
@@ -349,11 +344,6 @@ async function loadTodo(){const t=await api('/api/todo');const el=document.getEl
    <td style="width:120px">${esc(x.category)}</td><td>${esc(x.name)}</td><td><span class="badge b-blue">${esc(x.next_action)}</span></td></tr>`).join('')}</tbody></table></div>`).join('');
 }
 
-async function loadInst(){await loadCfg();const el=document.getElementById('instBody');
-  el.innerHTML=`<table><thead><tr><th>机构</th><th>是否含海报</th></tr></thead><tbody>${CFG.institutions.map(i=>`<tr><td>${esc(i.name)}</td><td>${i.has_poster?'<span class="badge b-green">有</span>':'<span class="badge b-gray">无</span>'}</td></tr>`).join('')}</tbody></table>`;}
-async function addInst(){const name=document.getElementById('instName').value.trim();if(!name){toast('填机构名',true);return;}
-  await api('/api/institutions','POST',{name,has_poster:document.getElementById('instPoster').checked});document.getElementById('instName').value='';document.getElementById('instPoster').checked=false;loadInst();toast('已添加');}
-
 async function loadTpl(){await loadCfg();
   const mx=await api('/api/blueprint_matrix');MX={};
   mx.forEach(r=>{(MX[r.ptype]=MX[r.ptype]||{})[r.process_id]=r.count;});
@@ -364,9 +354,9 @@ function ownCount(pt,pid){return (MX[pt]&&MX[pt][pid])||0;}
 function renderMatrix(){
   const procs=CFG.processes,types=CFG.product_types,el=document.getElementById('tplMatrix');
   let g=`<div class="tplmx" style="grid-template-columns:1.2fr repeat(${procs.length},1fr)"><div class="mh"></div>`+
-    procs.map(p=>`<div class="mh">${esc(p.name)}</div>`).join('');
+    procs.map(p=>`<div class="mh">${esc(p.name)} <span class="xdel" title="删除此流程" onclick="delProc(${p.id})">×</span></div>`).join('');
   types.forEach(t=>{const base=t.name==='通用';
-    g+=`<div class="rl">${esc(t.name)}${base?' <span class="badge b-gray">基线</span>':''}</div>`;
+    g+=`<div class="rl">${esc(t.name)}${base?' <span class="badge b-gray">基线</span>':` <span class="xdel" title="删除此产品类型" onclick='delType(${JSON.stringify(t.name)})'>×</span>`}</div>`;
     procs.forEach(p=>{const own=ownCount(t.name,p.id),
       sel=(t.name===window._tplType&&p.id===window._tplProc)?' sel':'';
       let cls,inner;
@@ -375,7 +365,7 @@ function renderMatrix(){
       else{cls='mcell inh'+sel;inner='↑ 继承通用';}
       g+=`<div class="${cls}" data-pt="${esc(t.name)}" data-pid="${p.id}">${inner}</div>`;});});
   g+=`</div><div style="display:flex;gap:18px;align-items:center;font-size:11px;color:var(--muted);margin-top:8px;flex-wrap:wrap">
-    <span><b style="color:var(--blue-dk)">N 项</b> 已配置</span><span>↑ 继承通用（可点开覆盖）</span><span>未配置＝通用本身也为空</span>
+    <span><b style="color:var(--blue-dk)">N 项</b> 已配置</span><span>↑ 继承通用（点格子可复制后微调）</span><span><span style="color:var(--red)">×</span> 删除类型/流程</span>
     <span style="flex:1"></span><button class="btn ghost sm" onclick="addType()">＋ 产品类型</button><button class="btn ghost sm" onclick="addProc()">＋ 流程</button></div>`;
   el.innerHTML=g;
   el.onclick=e=>{const c=e.target.closest('.mcell');if(c)pickCell(c.dataset.pt,+c.dataset.pid);};}
@@ -385,11 +375,18 @@ async function loadBp(){const ptype=window._tplType,pid=window._tplProc,el=docum
   const procName=(CFG.processes.find(p=>p.id===pid)||{}).name||'';
   let items=await api('/api/blueprint?ptype='+encodeURIComponent(ptype)+'&process_id='+pid),inherited=false;
   if(!items.length&&ptype!=='通用'){inherited=true;items=await api('/api/blueprint?ptype='+encodeURIComponent('通用')+'&process_id='+pid);}
+  window._inh=inherited;
   let head=`<div class="toolbar"><span style="font-size:16px;font-weight:600">${esc(ptype)} · ${esc(procName)}</span>
-    <span class="badge ${items.length?'b-blue':'b-gray'}">${items.length} 项</span><span style="flex:1"></span>
-    <button class="btn" onclick="openBp()">＋ 新增文件项</button></div>`;
-  if(inherited)head+=`<div class="banner">本「类型 × 流程」未单独配置，下方灰显为继承自【通用】的清单。点某项“在此覆盖”即可改为本类型专属。</div>`;
-  if(!items.length){el.innerHTML=head+'<div class="empty">通用模板在该流程也没有文件项。点“＋ 新增文件项”添加。</div>';return;}
+    <span class="badge ${items.length?'b-blue':'b-gray'}">${items.length} 项</span><span style="flex:1"></span>`;
+  if(inherited&&items.length){
+    head+=`<button class="btn" onclick="forkBp()">复制【通用】清单到此，开始微调</button>`;
+  }else{
+    head+=`<button class="btn" onclick="openBp()">＋ 新增文件项</button>`;
+    if(ptype!=='通用')head+=`<button class="btn ghost" onclick="clearBp()">恢复为继承通用</button>`;
+  }
+  head+=`</div>`;
+  if(inherited&&items.length)head+=`<div class="banner">本「类型 × 流程」继承自【通用】，下方为继承清单（只读）。点上方“复制【通用】清单到此”后，即可在本类型下自由增删改、做专属微调。</div>`;
+  if(!items.length){el.innerHTML=head+'<div class="empty">'+(ptype==='通用'?'':'通用模板在该流程也没有文件项。')+'点“＋ 新增文件项”添加。</div>';return;}
   let cat='',body='';
   items.forEach(i=>{if(i.category!==cat){cat=i.category;const cnt=items.filter(x=>x.category===cat).length;
       body+=`<div class="bpgrp"><span>${esc(cat||'未分类')}</span><span class="ln"></span><span style="font-weight:400">${cnt} 项</span></div>`;}
@@ -404,7 +401,7 @@ function bpItem(i,inherited){let p='';
   if(i.repeatable)p+=`<span class="pill">可多份</span>`;
   if(!i.required)p+=`<span class="pill">可选</span>`;
   if(!p)p='<span class="na">无审查要求</span>';
-  const act=inherited?`<span class="link" onclick='overrideBp(${JSON.stringify(i)})'>在此覆盖</span>`
+  const act=inherited?`<span class="na">继承自通用</span>`
     :`<span class="link" onclick='editBp(${JSON.stringify(i)})'>编辑</span> · <span class="link" onclick="delBp(${i.id})">删除</span>`;
   return `<div class="bpitem ${inherited?'inh':''}"><span class="nm">${esc(i.name)}</span><span class="pills">${p}</span><span class="act">${act}</span></div>`;}
 function condText(c){return {always:'总是',poster:'有海报时',merge:'仅合并版',split:'仅拆分版'}[c]||c;}
@@ -419,18 +416,25 @@ async function saveBp(){const name=document.getElementById('bpName').value.trim(
    needs_yy:document.getElementById('bpYy').checked,seal_party:document.getElementById('bpSeal').value.trim(),cond:document.getElementById('bpCond').value,
    repeatable:document.getElementById('bpRep').checked,sort:+document.getElementById('bpSort').value};
   await api('/api/blueprint_save','POST',b);close_('mBp');loadTpl();toast('已保存');}
-function overrideBp(i){editBp(i);document.getElementById('bpId').value='';document.getElementById('bpTitle').textContent='在【'+window._tplType+'】覆盖：'+(i.name||'');}
+async function forkBp(){await api('/api/blueprint_fork','POST',{ptype:window._tplType,process_id:window._tplProc});await loadTpl();toast('已复制通用清单，可开始增删微调');}
+async function clearBp(){if(!confirm('清空【'+window._tplType+'】在本流程的专属清单，并恢复为继承【通用】？\n（仅影响模板，不影响已创建的产品）'))return;
+  await api('/api/blueprint_clear','POST',{ptype:window._tplType,process_id:window._tplProc});await loadTpl();toast('已恢复为继承通用');}
 async function delBp(id){if(!confirm('删除此模板项？'))return;await api('/api/blueprint_delete','POST',{id});loadTpl();}
 async function addType(){const n=prompt('新产品类型名称：');if(!n)return;await api('/api/ptype_add','POST',{name:n.trim()});window._tplType=n.trim();await loadTpl();}
 async function addProc(){const n=prompt('新流程名称：');if(!n)return;await api('/api/process_add','POST',{name:n.trim()});await loadTpl();}
+async function delType(name){if(name==='通用'){toast('“通用”是基线，不能删除',true);return;}
+  if(!confirm('删除产品类型【'+name+'】？\n它的专属模板会一并删除；已创建的产品不受影响。'))return;
+  await api('/api/ptype_delete','POST',{name});if(window._tplType===name)window._tplType='通用';await loadTpl();toast('已删除产品类型');}
+async function delProc(id){const name=(CFG.processes.find(p=>p.id===id)||{}).name||'';
+  if(!confirm('删除流程【'+name+'】？\n将同时删除：该流程的全部模板项，以及所有产品中该流程的文件项及已上传文件。\n此操作不可恢复！'))return;
+  await api('/api/process_delete','POST',{id});if(window._tplProc===id)window._tplProc=(CFG.processes.find(p=>p.id!==id)||{}).id;await loadTpl();toast('已删除流程');}
 
 async function openCreate(){await loadCfg();
   document.getElementById('cType').innerHTML=CFG.product_types.map(t=>`<option>${esc(t.name)}</option>`).join('');
-  const sel=document.getElementById('cInst');sel.innerHTML=CFG.institutions.map(i=>`<option value="${i.id}" data-p="${i.has_poster}">${esc(i.name)}</option>`).join('');
-  sel.onchange=()=>{document.getElementById('cPoster').checked=sel.selectedOptions[0]&&sel.selectedOptions[0].dataset.p==='1';};sel.onchange();
+  document.getElementById('cPoster').checked=false;
   document.getElementById('cName').value='';show_('mCreate');}
 async function submitCreate(){const name=document.getElementById('cName').value.trim();if(!name){toast('填产品名',true);return;}
-  const res=await api('/api/products','POST',{name,ptype:document.getElementById('cType').value,institution_id:+document.getElementById('cInst').value,
+  const res=await api('/api/products','POST',{name,ptype:document.getElementById('cType').value,
    contract_form:document.getElementById('cForm').value,n_supp:+document.getElementById('cSupp').value||1,has_poster:document.getElementById('cPoster').checked});
   close_('mCreate');toast('已生成清单');openDetail(res.id);}
 
