@@ -13,8 +13,10 @@ PORT = 8765
 BASE = os.path.dirname(os.path.abspath(__file__))
 DATA = os.path.join(BASE, "data")
 FILES = os.path.join(DATA, "files")
+LIB = os.path.join(DATA, "lib")
 DB = os.path.join(DATA, "app.db")
 os.makedirs(FILES, exist_ok=True)
+os.makedirs(LIB, exist_ok=True)
 
 CATS = ["主文件", "消保", "法审", "用印", "其他"]
 XB_FS = ["未启动", "送审中", "通过", "退回"]
@@ -26,17 +28,19 @@ CREATE TABLE IF NOT EXISTS institution(id INTEGER PRIMARY KEY AUTOINCREMENT, nam
 CREATE TABLE IF NOT EXISTS product_type(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS process(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, sort INTEGER DEFAULT 0);
 CREATE TABLE IF NOT EXISTS blueprint_item(id INTEGER PRIMARY KEY AUTOINCREMENT, ptype TEXT DEFAULT '通用', process_id INTEGER,
-  category TEXT, name TEXT, required INTEGER DEFAULT 1, needs_xb INTEGER DEFAULT 0, needs_fs INTEGER DEFAULT 0,
+  category TEXT, name TEXT, required INTEGER DEFAULT 1, needs_file INTEGER DEFAULT 1, needs_xb INTEGER DEFAULT 0, needs_fs INTEGER DEFAULT 0,
   needs_yy INTEGER DEFAULT 0, seal_party TEXT DEFAULT '', cond TEXT DEFAULT 'always', repeatable INTEGER DEFAULT 0, sort INTEGER DEFAULT 0);
 CREATE TABLE IF NOT EXISTS product(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, ptype TEXT DEFAULT '通用',
   institution_id INTEGER, contract_form TEXT DEFAULT '合并', created_at TEXT);
 CREATE TABLE IF NOT EXISTS requirement(id INTEGER PRIMARY KEY AUTOINCREMENT, product_id INTEGER, process_id INTEGER,
-  category TEXT, name TEXT, required INTEGER DEFAULT 1, seal_party TEXT DEFAULT '',
+  category TEXT, name TEXT, required INTEGER DEFAULT 1, needs_file INTEGER DEFAULT 1, seal_party TEXT DEFAULT '',
   needs_xb INTEGER, needs_fs INTEGER, needs_yy INTEGER, xb_status TEXT, fs_status TEXT, yy_status TEXT, sort INTEGER DEFAULT 0);
 CREATE TABLE IF NOT EXISTS docfile(id INTEGER PRIMARY KEY AUTOINCREMENT, requirement_id INTEGER, category TEXT,
   version_no INTEGER DEFAULT 1, parent_id INTEGER, filename TEXT, filepath TEXT, size INTEGER, uploaded_at TEXT, note TEXT DEFAULT '');
 CREATE TABLE IF NOT EXISTS review_log(id INTEGER PRIMARY KEY AUTOINCREMENT, requirement_id INTEGER, field TEXT, value TEXT, note TEXT DEFAULT '', at TEXT);
 CREATE TABLE IF NOT EXISTS process_mirror(product_id INTEGER, process_id INTEGER, source_process_id INTEGER, PRIMARY KEY(product_id, process_id));
+CREATE TABLE IF NOT EXISTS lib_package(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, note TEXT DEFAULT '', created_at TEXT);
+CREATE TABLE IF NOT EXISTS lib_file(id INTEGER PRIMARY KEY AUTOINCREMENT, package_id INTEGER, category TEXT, filename TEXT, filepath TEXT, size INTEGER, uploaded_at TEXT);
 """
 
 SEED_PROCESSES = [("产品准入", 1), ("销售准入", 2), ("上架发售", 3), ("存续管理", 4)]
@@ -78,14 +82,17 @@ def pid_of(conn, name):
 
 
 def mirror_map(conn, product_id):
-    """{被共用的流程id: 来源流程id}（该产品下，哪些流程改用了别的流程的文件）"""
-    return {r["process_id"]: r["source_process_id"] for r in conn.execute(
-        "SELECT process_id, source_process_id FROM process_mirror WHERE product_id=?", (product_id,))}
+    """已停用“流程级共用”（改为跨产品导入 + 文件库）。保留空实现以兼容旧调用，并使任何历史共用记录失效。"""
+    return {}
 
 
 def init_db():
     conn = db()
     conn.executescript(SCHEMA)
+    for _tbl in ("blueprint_item", "requirement"):
+        _cols = {r[1] for r in conn.execute("PRAGMA table_info(%s)" % _tbl)}
+        if "needs_file" not in _cols:
+            conn.execute("ALTER TABLE %s ADD COLUMN needs_file INTEGER DEFAULT 1" % _tbl)
     if conn.execute("SELECT COUNT(*) FROM process").fetchone()[0] == 0:
         for n, s in SEED_PROCESSES:
             conn.execute("INSERT INTO process(name,sort) VALUES(?,?)", (n, s))
@@ -131,9 +138,9 @@ def blueprint_for(conn, ptype, process_id):
     return items
 
 
-def add_requirement(conn, pid, proc_id, category, name, xb, fs, yy, seal, sort=0):
-    conn.execute("""INSERT INTO requirement(product_id,process_id,category,name,required,seal_party,needs_xb,needs_fs,needs_yy,xb_status,fs_status,yy_status,sort)
-        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""", (pid, proc_id, category, name, 1, seal, xb, fs, yy,
+def add_requirement(conn, pid, proc_id, category, name, xb, fs, yy, seal, sort=0, needs_file=1):
+    conn.execute("""INSERT INTO requirement(product_id,process_id,category,name,required,needs_file,seal_party,needs_xb,needs_fs,needs_yy,xb_status,fs_status,yy_status,sort)
+        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", (pid, proc_id, category, name, 1, needs_file, seal, xb, fs, yy,
         "未启动" if xb else "不适用", "未启动" if fs else "不适用", "待用印" if yy else "不适用", sort))
 
 
@@ -151,7 +158,61 @@ def instantiate(conn, pid, ptype, n_supp, has_poster, form):
             for k in range(cnt):
                 suf = (" #%d" % (k + 1)) if (it["repeatable"] and cnt > 1) else ""
                 add_requirement(conn, pid, p["id"], it["category"], it["name"] + suf,
-                                it["needs_xb"], it["needs_fs"], it["needs_yy"], it["seal_party"], it["sort"])
+                                it["needs_xb"], it["needs_fs"], it["needs_yy"], it["seal_party"], it["sort"], it["needs_file"])
+
+
+def import_process_files(conn, dst_pid, proc_id, src_pid):
+    """#1 跨产品复用：把来源产品在同一流程下、同名文件项的【已上传文件 + 审查状态】一次性复制到目标产品（复制后各自独立）。"""
+    src_by_name = {}
+    for r in conn.execute("SELECT * FROM requirement WHERE product_id=? AND process_id=?", (src_pid, proc_id)).fetchall():
+        src_by_name.setdefault(r["name"], r)
+    cat_tag = {"主文件": "main", "消保": "xb", "法审": "fs", "用印": "yy", "其他": "etc"}
+    n = 0
+    for d in conn.execute("SELECT * FROM requirement WHERE product_id=? AND process_id=?", (dst_pid, proc_id)).fetchall():
+        s = src_by_name.get(d["name"])
+        if not s:
+            continue
+        for f in conn.execute("SELECT * FROM docfile WHERE requirement_id=? ORDER BY category, version_no", (s["id"],)).fetchall():
+            if not f["filepath"] or not os.path.exists(f["filepath"]):
+                continue
+            cat = f["category"]
+            prev = conn.execute("SELECT MAX(version_no) m FROM docfile WHERE requirement_id=? AND category=?", (d["id"], cat)).fetchone()["m"]
+            vno = (prev or 0) + 1
+            diskname = "r%d_%s_v%d_%s" % (d["id"], cat_tag.get(cat, "etc"), vno, safe(f["filename"]))
+            fp = os.path.join(FILES, diskname)
+            try:
+                with open(f["filepath"], "rb") as rf, open(fp, "wb") as wf:
+                    wf.write(rf.read())
+            except Exception:
+                continue
+            conn.execute("INSERT INTO docfile(requirement_id,category,version_no,filename,filepath,size,uploaded_at,note) VALUES(?,?,?,?,?,?,?,?)",
+                         (d["id"], cat, vno, f["filename"], fp, f["size"], now(), "导入自其他产品"))
+            n += 1
+        sets, vals = [], []
+        if d["needs_xb"]:
+            sets.append("xb_status=?"); vals.append(s["xb_status"])
+        if d["needs_fs"]:
+            sets.append("fs_status=?"); vals.append(s["fs_status"])
+        if d["needs_yy"]:
+            sets.append("yy_status=?"); vals.append(s["yy_status"])
+        if sets:
+            conn.execute("UPDATE requirement SET " + ",".join(sets) + " WHERE id=?", vals + [d["id"]])
+    return n
+
+
+def put_requirement_file(conn, rid, cat, src_path, filename, size, note=""):
+    """把磁盘上的某文件复制为目标文件项指定类别的新版本（用于“从文件库选用/整套导入”）。"""
+    if cat not in CATS:
+        cat = "其他"
+    cat_tag = {"主文件": "main", "消保": "xb", "法审": "fs", "用印": "yy", "其他": "etc"}
+    prev = conn.execute("SELECT MAX(version_no) m FROM docfile WHERE requirement_id=? AND category=?", (rid, cat)).fetchone()["m"]
+    vno = (prev or 0) + 1
+    diskname = "r%d_%s_v%d_%s" % (rid, cat_tag.get(cat, "etc"), vno, safe(filename))
+    fp = os.path.join(FILES, diskname)
+    with open(src_path, "rb") as rf, open(fp, "wb") as wf:
+        wf.write(rf.read())
+    conn.execute("INSERT INTO docfile(requirement_id,category,version_no,filename,filepath,size,uploaded_at,note) VALUES(?,?,?,?,?,?,?,?)",
+                 (rid, cat, vno, filename, fp, size, now(), note))
 
 
 def has_cat(conn, rid, cat):
@@ -159,7 +220,7 @@ def has_cat(conn, rid, cat):
 
 
 def next_action(conn, r):
-    if not has_cat(conn, r["id"], "主文件"):
+    if r["needs_file"] and not has_cat(conn, r["id"], "主文件"):
         return "上传" + r["name"]
     if r["needs_xb"] and r["xb_status"] != "通过":
         s = r["xb_status"]
@@ -173,16 +234,7 @@ def next_action(conn, r):
 
 
 def can_set(conn, r, field, value):
-    if field == "xb" and value == "通过" and not has_cat(conn, r["id"], "消保"):
-        return False, "请先在“消保”处上传消保文件，再标记通过"
-    if field == "fs" and value in ("送审中", "通过"):
-        if r["needs_xb"] and r["xb_status"] != "通过":
-            return False, "需先通过消保，才能送审/通过法审"
-    if field == "yy" and value == "已用印":
-        if r["needs_xb"] and r["xb_status"] != "通过":
-            return False, "需先通过消保，才能用印"
-        if r["needs_fs"] and r["fs_status"] != "通过":
-            return False, "需先通过法审，才能用印"
+    # 已按需求取消“前后流程”硬性门禁：消保/法审/用印各状态可独立设置，互不限制。
     return True, ""
 
 
@@ -315,6 +367,15 @@ class Handler(BaseHTTPRequestHandler):
                         for r in conn.execute("SELECT ptype, process_id, COUNT(*) c FROM blueprint_item GROUP BY ptype, process_id")]
                 conn.close()
                 return self._json(rows)
+            if path == "/api/library":
+                conn = db()
+                pkgs = []
+                for p in conn.execute("SELECT * FROM lib_package ORDER BY id DESC"):
+                    files = [dict(f) for f in conn.execute("SELECT id,package_id,category,filename,size FROM lib_file WHERE package_id=? ORDER BY id", (p["id"],))]
+                    d = dict(p); d["files"] = files; pkgs.append(d)
+                singles = [dict(f) for f in conn.execute("SELECT id,category,filename,size FROM lib_file WHERE package_id IS NULL ORDER BY id DESC")]
+                conn.close()
+                return self._json({"packages": pkgs, "singles": singles})
             if path == "/api/file":
                 return self._download(int(q["fid"][0]))
             if path == "/api/export":
@@ -350,9 +411,76 @@ class Handler(BaseHTTPRequestHandler):
                     conn.close(); return self._json({"error": "所选来源流程本身在共用别的流程，请改选来源"}, 400)
                 conn.execute("INSERT OR REPLACE INTO process_mirror(product_id,process_id,source_process_id) VALUES(?,?,?)", (prod, proc, src))
                 conn.commit(); conn.close(); return self._json({"ok": True})
-            if path == "/api/process_mirror_clear":
-                conn.execute("DELETE FROM process_mirror WHERE product_id=? AND process_id=?", (int(b["product_id"]), int(b["process_id"])))
+            if path == "/api/import_from_product":
+                n = import_process_files(conn, int(b["product_id"]), int(b["process_id"]), int(b["source_product_id"]))
+                conn.commit(); conn.close(); return self._json({"ok": True, "copied": n})
+            if path == "/api/lib_package_add":
+                conn.execute("INSERT INTO lib_package(name,note,created_at) VALUES(?,?,?)", (b.get("name", "").strip(), b.get("note", "").strip(), now()))
                 conn.commit(); conn.close(); return self._json({"ok": True})
+            if path == "/api/lib_package_delete":
+                pkg = int(b["id"])
+                for f in conn.execute("SELECT filepath FROM lib_file WHERE package_id=?", (pkg,)).fetchall():
+                    try:
+                        os.remove(f["filepath"])
+                    except Exception:
+                        pass
+                conn.execute("DELETE FROM lib_file WHERE package_id=?", (pkg,))
+                conn.execute("DELETE FROM lib_package WHERE id=?", (pkg,))
+                conn.commit(); conn.close(); return self._json({"ok": True})
+            if path == "/api/lib_upload":
+                cat = b.get("category", "主文件").strip()
+                if cat not in CATS:
+                    cat = "其他"
+                fn = b.get("filename", "file")
+                raw = base64.b64decode(b.get("data_base64", "")) if b.get("data_base64") else b""
+                pkg = b.get("package_id")
+                pkg = int(pkg) if pkg else None
+                lid = conn.execute("INSERT INTO lib_file(package_id,category,filename,filepath,size,uploaded_at) VALUES(?,?,?,?,?,?)",
+                                   (pkg, cat, fn, "", len(raw), now())).lastrowid
+                fp = os.path.join(LIB, "lib_%d_%s" % (lid, safe(fn)))
+                with open(fp, "wb") as fh:
+                    fh.write(raw)
+                conn.execute("UPDATE lib_file SET filepath=? WHERE id=?", (fp, lid))
+                conn.commit(); conn.close(); return self._json({"ok": True})
+            if path == "/api/lib_file_delete":
+                f = conn.execute("SELECT * FROM lib_file WHERE id=?", (int(b["id"]),)).fetchone()
+                if f:
+                    try:
+                        os.remove(f["filepath"])
+                    except Exception:
+                        pass
+                    conn.execute("DELETE FROM lib_file WHERE id=?", (int(b["id"]),))
+                    conn.commit()
+                conn.close(); return self._json({"ok": True})
+            if path == "/api/lib_apply":
+                rid = int(b["rid"]); f = conn.execute("SELECT * FROM lib_file WHERE id=?", (int(b["lib_file_id"]),)).fetchone()
+                if not f:
+                    conn.close(); return self._json({"error": "文件不存在"}, 404)
+                if not f["filepath"] or not os.path.exists(f["filepath"]):
+                    conn.close(); return self._json({"error": "文件已丢失"}, 400)
+                put_requirement_file(conn, rid, f["category"], f["filepath"], f["filename"], f["size"], "来自文件库")
+                conn.commit(); conn.close(); return self._json({"ok": True})
+            if path == "/api/lib_apply_package":
+                rid = int(b["rid"]); pkg = int(b["package_id"])
+                r = conn.execute("SELECT * FROM requirement WHERE id=?", (rid,)).fetchone()
+                if not r:
+                    conn.close(); return self._json({"error": "文件项不存在"}, 404)
+                cats = set()
+                for f in conn.execute("SELECT * FROM lib_file WHERE package_id=? ORDER BY id", (pkg,)).fetchall():
+                    if not f["filepath"] or not os.path.exists(f["filepath"]):
+                        continue
+                    put_requirement_file(conn, rid, f["category"], f["filepath"], f["filename"], f["size"], "来自文件库·整套")
+                    cats.add(f["category"])
+                sets, vals = [], []
+                if "消保" in cats and r["needs_xb"]:
+                    sets.append("xb_status=?"); vals.append("通过")
+                if "法审" in cats and r["needs_fs"]:
+                    sets.append("fs_status=?"); vals.append("通过")
+                if "用印" in cats and r["needs_yy"]:
+                    sets.append("yy_status=?"); vals.append("已用印")
+                if sets:
+                    conn.execute("UPDATE requirement SET " + ",".join(sets) + " WHERE id=?", vals + [rid])
+                conn.commit(); conn.close(); return self._json({"ok": True, "imported": len(cats)})
             if path == "/api/review":
                 return self._review(conn, b)
             if path == "/api/upload":
@@ -370,13 +498,13 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/req_add":
                 add_requirement(conn, int(b["product_id"]), int(b["process_id"]), b.get("category", "其他"),
                                 b.get("name", "新文件"), 1 if b.get("needs_xb") else 0, 1 if b.get("needs_fs") else 0,
-                                1 if b.get("needs_yy") else 0, b.get("seal_party", ""), 999)
+                                1 if b.get("needs_yy") else 0, b.get("seal_party", ""), 999, 1 if b.get("needs_file", True) else 0)
                 conn.commit(); conn.close(); return self._json({"ok": True})
             if path == "/api/req_duplicate":
                 r = conn.execute("SELECT * FROM requirement WHERE id=?", (int(b["id"]),)).fetchone()
                 if r:
                     add_requirement(conn, r["product_id"], r["process_id"], r["category"], r["name"] + "（副本）",
-                                    r["needs_xb"], r["needs_fs"], r["needs_yy"], r["seal_party"], r["sort"])
+                                    r["needs_xb"], r["needs_fs"], r["needs_yy"], r["seal_party"], r["sort"], r["needs_file"])
                     conn.commit()
                 conn.close(); return self._json({"ok": True})
             if path == "/api/req_delete":
@@ -420,8 +548,8 @@ class Handler(BaseHTTPRequestHandler):
                 pt = b.get("ptype", "").strip(); pid = int(b["process_id"])
                 if pt and pt != "通用" and conn.execute("SELECT COUNT(*) FROM blueprint_item WHERE ptype=? AND process_id=?", (pt, pid)).fetchone()[0] == 0:
                     for it in conn.execute("SELECT * FROM blueprint_item WHERE ptype='通用' AND process_id=? ORDER BY sort,id", (pid,)).fetchall():
-                        conn.execute("""INSERT INTO blueprint_item(ptype,process_id,category,name,required,needs_xb,needs_fs,needs_yy,seal_party,cond,repeatable,sort)
-                            VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""", (pt, pid, it["category"], it["name"], it["required"], it["needs_xb"], it["needs_fs"], it["needs_yy"], it["seal_party"], it["cond"], it["repeatable"], it["sort"]))
+                        conn.execute("""INSERT INTO blueprint_item(ptype,process_id,category,name,required,needs_file,needs_xb,needs_fs,needs_yy,seal_party,cond,repeatable,sort)
+                            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""", (pt, pid, it["category"], it["name"], it["required"], it["needs_file"], it["needs_xb"], it["needs_fs"], it["needs_yy"], it["seal_party"], it["cond"], it["repeatable"], it["sort"]))
                 conn.commit(); conn.close(); return self._json({"ok": True})
             if path == "/api/blueprint_clear":
                 pt = b.get("ptype", "").strip(); pid = int(b["process_id"])
@@ -434,12 +562,12 @@ class Handler(BaseHTTPRequestHandler):
 
     def _bp_save(self, conn, b):
         f = (b.get("ptype", "通用"), int(b["process_id"]), b.get("category", ""), b.get("name", ""),
-             1 if b.get("required", 1) else 0, 1 if b.get("needs_xb") else 0, 1 if b.get("needs_fs") else 0,
+             1 if b.get("required", 1) else 0, 1 if b.get("needs_file", True) else 0, 1 if b.get("needs_xb") else 0, 1 if b.get("needs_fs") else 0,
              1 if b.get("needs_yy") else 0, b.get("seal_party", ""), b.get("cond", "always"), 1 if b.get("repeatable") else 0, int(b.get("sort", 0)))
         if b.get("id"):
-            conn.execute("""UPDATE blueprint_item SET ptype=?,process_id=?,category=?,name=?,required=?,needs_xb=?,needs_fs=?,needs_yy=?,seal_party=?,cond=?,repeatable=?,sort=? WHERE id=?""", f + (int(b["id"]),))
+            conn.execute("""UPDATE blueprint_item SET ptype=?,process_id=?,category=?,name=?,required=?,needs_file=?,needs_xb=?,needs_fs=?,needs_yy=?,seal_party=?,cond=?,repeatable=?,sort=? WHERE id=?""", f + (int(b["id"]),))
         else:
-            conn.execute("""INSERT INTO blueprint_item(ptype,process_id,category,name,required,needs_xb,needs_fs,needs_yy,seal_party,cond,repeatable,sort) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""", f)
+            conn.execute("""INSERT INTO blueprint_item(ptype,process_id,category,name,required,needs_file,needs_xb,needs_fs,needs_yy,seal_party,cond,repeatable,sort) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""", f)
         conn.commit(); conn.close(); return self._json({"ok": True})
 
     def _product(self, pid):

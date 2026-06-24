@@ -117,6 +117,7 @@ select.s-退回{border-color:var(--red);color:var(--red)}select.s-送审中{bord
     <button data-v="dashboard" class="active" onclick="nav('dashboard')">驾驶舱</button>
     <button data-v="todo" onclick="nav('todo')">今日待办</button>
     <button data-v="tpl" onclick="nav('tpl')">模板管理</button>
+    <button data-v="lib" onclick="nav('lib')">文件库</button>
   </nav>
   <button class="btn ghost" onclick="exportAll()">导出全部</button>
   <button class="btn" onclick="openCreate()">＋ 一键开产品</button>
@@ -144,6 +145,12 @@ select.s-退回{border-color:var(--red);color:var(--red)}select.s-送审中{bord
     <div id="bpBody" style="margin-top:18px"></div>
   </section>
 
+  <section id="lib" class="view">
+    <h2>共用文件库</h2>
+    <div class="sub">放“多个产品都一样”的文件：单个文件可在各产品对应类别用“📚库”选用；文件包(一套)可在文件项里“📦整套导入”（含消保/法审/用印，并自动置为已通过/已用印）。</div>
+    <div id="libBody"></div>
+  </section>
+
 </main>
 
 <div class="modal-bg" id="mCreate"><div class="modal">
@@ -164,6 +171,11 @@ select.s-退回{border-color:var(--red);color:var(--red)}select.s-送审中{bord
   <div class="row">
     <div class="field"><label>大类</label><input type="text" id="bpCat" placeholder="如：代销协议"></div>
     <div class="field"><label>文件项名称 *</label><input type="text" id="bpName" placeholder="如：总对总协议"></div>
+  </div>
+  <div class="field"><label>文件要求</label>
+    <div class="checks">
+      <label><input type="checkbox" id="bpFile" checked> 需要上传主文件（不勾＝此项无需上传文件即可“到位”）</label>
+    </div>
   </div>
   <div class="field"><label>需要哪些审查</label>
     <div class="checks">
@@ -192,12 +204,28 @@ select.s-退回{border-color:var(--red);color:var(--red)}select.s-送审中{bord
     <div class="field"><label>大类</label><input type="text" id="rqCat" placeholder="如：其他"></div>
     <div class="field"><label>文件项名称 *</label><input type="text" id="rqName"></div>
   </div>
+  <div class="field"><label><input type="checkbox" id="rqFile" checked> 需要上传文件</label></div>
   <div class="field"><label>需要哪些审查</label><div class="checks">
     <label><input type="checkbox" id="rqXb"> 消保</label>
     <label><input type="checkbox" id="rqFs"> 法审</label>
     <label><input type="checkbox" id="rqYy"> 用印</label></div></div>
   <div class="field"><label>用印方</label><input type="text" id="rqSeal" placeholder="双方 / 对方机构"></div>
   <div class="modal-actions"><button class="btn ghost" onclick="close_('mReq')">取消</button><button class="btn" onclick="submitReq()">添加</button></div>
+</div></div>
+
+<div class="modal-bg" id="mImport"><div class="modal">
+  <h3>从其他产品导入本流程文件</h3>
+  <input type="hidden" id="impProc">
+  <div class="field"><label>来源产品（复制其“相同流程、同名文件项”的已上传文件与审查状态到当前产品）</label>
+    <select id="impSrc"></select></div>
+  <div class="banner">一次性复制：导入后两个产品各自独立、互不影响；仅按“文件项名称”匹配复制。</div>
+  <div class="modal-actions"><button class="btn ghost" onclick="close_('mImport')">取消</button><button class="btn" onclick="submitImport()">导入</button></div>
+</div></div>
+
+<div class="modal-bg" id="mLib"><div class="modal">
+  <h3 id="libPickTitle">从文件库选择</h3>
+  <div id="libPickBody" style="max-height:50vh;overflow:auto"></div>
+  <div class="modal-actions"><button class="btn ghost" onclick="close_('mLib')">关闭</button></div>
 </div></div>
 
 <div class="toast" id="toast"></div>
@@ -212,7 +240,7 @@ async function loadCfg(){CFG=await api('/api/config');}
 
 function nav(v){document.querySelectorAll('.view').forEach(s=>s.classList.remove('active'));document.getElementById(v).classList.add('active');
  document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.dataset.v===v));
- if(v==='dashboard')loadDash();if(v==='todo')loadTodo();if(v==='tpl')loadTpl();}
+ if(v==='dashboard')loadDash();if(v==='todo')loadTodo();if(v==='tpl')loadTpl();if(v==='lib')loadLibrary();}
 function navDetail(){document.querySelectorAll('.view').forEach(s=>s.classList.remove('active'));document.getElementById('detail').classList.add('active');document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));}
 
 async function loadDash(){
@@ -244,18 +272,16 @@ function renderDetail(){
   let tabbar=`<div class="tabs">`+tabs.map((t,i)=>`<button class="${i===window._tab?'active':''}" onclick="window._tab=${i};renderDetail()">${esc(t.name)} <span class="badge ${t.ready?'b-green':'b-gray'}" style="margin-left:4px">${t.done}/${t.total}</span></button>`).join('')+`</div>`;
   const t=tabs[window._tab];
   const onlyTodo=!!window._onlyTodo;
-  window._mir=!!t.mirrored_from;
   const reqs=t.requirements.filter(r=>!onlyTodo||!r.done);
   let body='';
   if(!t.prior_ready)body+=`<div class="banner">⚠ 前序流程尚未备齐（软提示，不影响你继续操作本流程）</div>`;
-  if(t.mirrored_from)body+=`<div class="banner" style="background:var(--blue-bg);color:var(--blue-dk)">🔗 本流程正与【${esc(t.mirrored_from)}】<b>共用同一套文件</b>，上传与消保/法审/用印都会自动同步；增删文件项请到【${esc(t.mirrored_from)}】里操作。 <span class="link" style="margin-left:6px" onclick="clearMirror(${t.id})">取消共用</span></div>`;
-  const others=tabs.filter(x=>x.id!==t.id&&!x.mirrored_from);
-  const mirCtl=(!t.mirrored_from&&others.length)?`<select onchange="if(this.value)setMirror(${t.id},+this.value)"><option value="">🔗 共用其他流程的文件…</option>${others.map(o=>`<option value="${o.id}">共用【${esc(o.name)}】的文件</option>`).join('')}</select>`:'';
   body+=`<div class="toolbar"><span class="muted">${t.name}：${t.done}/${t.total} 到位</span>
     <label class="muted" style="display:flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" ${onlyTodo?'checked':''} onchange="window._onlyTodo=this.checked;renderDetail()"> 只看未到位</label>
     <button class="btn ghost sm" onclick="expandAll(true)">展开全部</button>
     <button class="btn ghost sm" onclick="expandAll(false)">收起全部</button>
-    <span style="flex:1"></span>${mirCtl}${t.mirrored_from?'':`<button class="btn ghost sm" onclick="openReq(${t.id})">＋ 增加一项</button>`}</div>`;
+    <span style="flex:1"></span>
+    <button class="btn ghost sm" onclick="importFromProduct(${t.id})" title="把其他产品本流程已上传的文件复制过来">📥 从其他产品导入</button>
+    <button class="btn ghost sm" onclick="openReq(${t.id})">＋ 增加一项</button></div>`;
   if(!reqs.length){body+=`<div class="empty">${onlyTodo?'本流程已全部到位 🎉':'该流程没有清单项。'}</div>`;}
   else{let cat='';body+=reqs.map(r=>{let h='';if(r.category!==cat){cat=r.category;h=`<div class="catlabel">${esc(cat)}</div>`;}return h+reqCard(r);}).join('');}
   document.getElementById('detailBody').innerHTML=head+tabbar+body;
@@ -263,15 +289,18 @@ function renderDetail(){
 function expandAll(o){document.querySelectorAll('#detailBody .reqcard').forEach(d=>d.open=o);}
 function summarySteps(r){
   const mf=(r.files&&r.files['主文件'])||[];
-  const steps=[{name:'主文件',done:mf.length>0}];
+  const steps=[];
+  if(r.needs_file!==0)steps.push({name:'主文件',done:mf.length>0,up:true});
   if(r.needs_xb)steps.push({name:'消保',done:r.xb_status==='通过',rej:r.xb_status==='退回',wip:r.xb_status==='送审中',note:r.xb_note});
   if(r.needs_fs)steps.push({name:'法审',done:r.fs_status==='通过',rej:r.fs_status==='退回',wip:r.fs_status==='送审中',note:r.fs_note});
   if(r.needs_yy)steps.push({name:'用印'+(r.seal_party?'·'+r.seal_party:''),done:r.yy_status==='已用印'});
+  if(!steps.length)return `<span class="step ok">✓ 无需材料</span>`;
   const cur=steps.findIndex(s=>!s.done);
   return steps.map((s,i)=>{
     if(s.done)return `<span class="step ok">✓ ${esc(s.name)}</span>`;
     let cls='pend',extra='';
     if(i===cur){if(s.rej){cls='bad';extra=' 退回';}else if(s.wip){cls='wip';extra=' 送审中';}else cls='act';}
+    if(s.up)extra=' 未上传';
     const tip=(cls==='bad'&&s.note)?` title="退回意见：${esc(s.note)}"`:'';
     return `<span class="step ${cls}"${tip}><i class="d"></i>${esc(s.name)}${extra}</span>`;
   }).join('');
@@ -279,7 +308,7 @@ function summarySteps(r){
 function findReq(rid){const d=window._d;if(!d)return null;for(const p of d.processes){const r=(p.requirements||[]).find(x=>x.id===rid);if(r)return r;}return null;}
 function cta(rid){const r=findReq(rid);if(!r)return;
   const mf=(r.files&&r.files['主文件'])||[];
-  if(!mf.length){pickFile(rid,'主文件');return;}
+  if(r.needs_file!==0&&!mf.length){pickFile(rid,'主文件');return;}
   let cat=null;
   if(r.needs_xb&&r.xb_status!=='通过')cat='消保';
   else if(r.needs_fs&&r.fs_status!=='通过')cat='法审';
@@ -295,13 +324,14 @@ function reqCard(r){
   blocks+=fblock(r,'其他附件','其他',null,null);
   const badge=r.done?`<span class="badge b-green">已到位</span>`
     :`<span class="badge b-blue cta" title="点击直接处理这一步" onclick="event.preventDefault();event.stopPropagation();cta(${r.id})">${esc(r.next_action)} ›</span>`;
-  const foot=window._mir?'':`<div class="rqfoot"><button class="btn ghost sm" onclick="dupReq(${r.id})">复制此项</button>
-    <button class="btn danger sm" onclick="delReq(${r.id})">删除此项</button></div>`;
   return `<details id="rq${r.id}" class="reqcard ${r.done?'done':''}"><summary>
     <span class="rqname">${esc(r.name)}</span>
     <span class="steps">${summarySteps(r)}</span>
     ${badge}</summary>
-    <div class="rqbody">${blocks}${foot}</div></details>`;
+    <div class="rqbody">${blocks}
+    <div class="rqfoot"><button class="btn ghost sm" onclick="pickLibPackage(${r.id})">📦 从文件库导入整套</button>
+    <button class="btn ghost sm" onclick="dupReq(${r.id})">复制此项</button>
+    <button class="btn danger sm" onclick="delReq(${r.id})">删除此项</button></div></div></details>`;
 }
 function fblock(r,label,cat,field,val){
   let opts=field?(field==='yy'?['待用印','已用印']:['未启动','送审中','通过','退回']):null;
@@ -311,7 +341,8 @@ function fblock(r,label,cat,field,val){
   let note=(field&&val==='退回'&&r[field+'_note'])?`<div class="rejnote">⚠ 退回意见：${esc(r[field+'_note'])}</div>`:'';
   return `<div class="fblock" data-blk="${esc(cat)}"><div class="fblabel">${esc(label)}${sel}</div>
     <div class="files">${flist||'<span class="na">无文件</span>'}</div>
-    <button class="btn ghost sm" onclick="pickFile(${r.id},'${cat}')">＋上传</button>${note}</div>`;
+    <button class="btn ghost sm" onclick="pickFile(${r.id},'${cat}')">＋上传</button>
+    <button class="btn ghost sm" onclick="pickLibFile(${r.id},'${cat}')">📚库</button>${note}</div>`;
 }
 async function setRev(rid,field,value){let note='';
   if(value==='退回'){note=(prompt('请填写退回意见（必填，会记入留痕并显示在该审查处）：','')||'').trim();
@@ -323,17 +354,65 @@ async function delFile(id){if(!confirm('删除此文件？'))return;await api('/
 async function dupReq(id){await api('/api/req_duplicate','POST',{id});toast('已复制');openDetail(window._pid,1);}
 async function delReq(id){if(!confirm('删除此项及其文件？'))return;await api('/api/req_delete','POST',{id});openDetail(window._pid,1);}
 async function delProduct(id){if(!confirm('确认删除整个产品？'))return;await api('/api/product_delete','POST',{id});nav('dashboard');}
-async function setMirror(procId,srcId){const res=await api('/api/process_mirror_set','POST',{product_id:window._pid,process_id:procId,source_process_id:srcId});
-  if(res.error)toast(res.error,true);else toast('已设为共用同一套文件');openDetail(window._pid,1);}
-async function clearMirror(procId){if(!confirm('取消共用后，本流程恢复使用自己的文件清单（它原本的清单仍保留着）。确定？'))return;
-  await api('/api/process_mirror_clear','POST',{product_id:window._pid,process_id:procId});toast('已取消共用');openDetail(window._pid,1);}
+async function importFromProduct(procId){const ps=await api('/api/products');const others=ps.filter(p=>p.id!==window._pid);
+  if(!others.length){toast('没有其他产品可导入',true);return;}
+  document.getElementById('impProc').value=procId;
+  document.getElementById('impSrc').innerHTML=others.map(p=>`<option value="${p.id}">${esc(p.name)}（${esc(p.ptype||'—')}）</option>`).join('');
+  show_('mImport');}
+async function submitImport(){const proc=+document.getElementById('impProc').value,src=+document.getElementById('impSrc').value;
+  const res=await api('/api/import_from_product','POST',{product_id:window._pid,process_id:proc,source_product_id:src});
+  close_('mImport');if(res.error)toast(res.error,true);else toast('已导入 '+(res.copied||0)+' 个文件');openDetail(window._pid,1);}
+
+async function loadLibrary(){const lib=await api('/api/library');let h='';
+  h+=`<div class="toolbar"><span style="font-size:15px;font-weight:600">文件包（一套，可在文件项里“整套导入”）</span><span style="flex:1"></span>
+    <button class="btn" onclick="newLibPackage()">＋ 新建文件包</button>
+    <button class="btn ghost" onclick="uploadLibSingle()">＋ 上传单个文件</button></div>`;
+  h+=(lib.packages||[]).length?lib.packages.map(libPackageCard).join('')
+    :'<div class="empty" style="padding:24px 0">还没有文件包。点“＋新建文件包”，再往里上传 主文件/消保/法审/用印。</div>';
+  h+=`<div class="catlabel" style="margin-top:18px">单个文件（可在文件项的某个类别用“📚库”选用）</div>`;
+  h+=(lib.singles||[]).length?`<div class="cards">`+lib.singles.map(f=>`<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+      <span><span class="badge b-blue">${esc(f.category)}</span> ${esc(f.filename)}</span>
+      <span class="link" style="color:var(--red)" onclick="delLibFile(${f.id})">删除</span></div></div>`).join('')+`</div>`
+    :'<div class="empty" style="padding:16px 0">还没有单个文件。</div>';
+  document.getElementById('libBody').innerHTML=h;}
+function libPackageCard(p){
+  const files=(p.files||[]).map(f=>`<span class="fchip"><b>${esc(f.category)}</b> ${esc(f.filename)} <span class="xdel" onclick="delLibFile(${f.id})">×</span></span>`).join('')||'<span class="na">空包，请上传文件</span>';
+  return `<div class="card" style="margin-bottom:12px"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+    <h3 style="margin:0">📦 ${esc(p.name)}</h3>
+    <span><span class="link" onclick="uploadLibToPackage(${p.id})">＋上传文件到此包</span> · <span class="link" style="color:var(--red)" onclick="delLibPackage(${p.id})">删除包</span></span></div>
+    ${p.note?`<div class="meta">${esc(p.note)}</div>`:''}
+    <div class="files" style="margin-top:8px">${files}</div></div>`;}
+async function newLibPackage(){const n=prompt('文件包名称（如：XX发行-总对总一套）：');if(!n||!n.trim())return;const note=prompt('备注（可留空）：')||'';
+  await api('/api/lib_package_add','POST',{name:n.trim(),note:note.trim()});loadLibrary();toast('已新建文件包');}
+async function delLibPackage(id){if(!confirm('删除此文件包及其中所有文件？'))return;await api('/api/lib_package_delete','POST',{id});loadLibrary();toast('已删除');}
+async function delLibFile(id){if(!confirm('从文件库删除此文件？'))return;await api('/api/lib_file_delete','POST',{id});loadLibrary();}
+function uploadLibSingle(){libUpload(null);}
+function uploadLibToPackage(pid){libUpload(pid);}
+function libUpload(pid){const cat=(prompt('文件类别（主文件 / 消保 / 法审 / 用印 / 其他）：','主文件')||'').trim();if(!cat)return;
+  const i=document.createElement('input');i.type='file';i.onchange=()=>{const f=i.files[0];if(!f)return;const rd=new FileReader();
+    rd.onload=async()=>{const res=await api('/api/lib_upload','POST',{package_id:pid,category:cat,filename:f.name,data_base64:rd.result.split(',')[1]});
+      if(res.error)toast(res.error,true);else toast('已上传到文件库');loadLibrary();};rd.readAsDataURL(f);};i.click();}
+async function pickLibFile(rid,cat){const lib=await api('/api/library');const singles=(lib.singles||[]).filter(f=>f.category===cat);
+  document.getElementById('libPickTitle').textContent='从文件库选择「'+cat+'」文件';
+  document.getElementById('libPickBody').innerHTML=singles.length
+    ?singles.map(f=>`<div class="bpitem"><span class="nm">${esc(f.filename)}</span><span class="pills"><span class="pill">${esc(f.category)}</span></span><span class="act"><span class="link" onclick="applyLibFile(${rid},${f.id})">选用</span></span></div>`).join('')
+    :'<div class="empty">文件库里没有「'+cat+'」类别的单个文件。<br>可到顶部“文件库”上传。</div>';
+  show_('mLib');}
+async function applyLibFile(rid,fid){await api('/api/lib_apply','POST',{rid,lib_file_id:fid});close_('mLib');toast('已从文件库选用');openDetail(window._pid,1);}
+async function pickLibPackage(rid){const lib=await api('/api/library');const pkgs=lib.packages||[];
+  document.getElementById('libPickTitle').textContent='从文件库导入整套（文件包）';
+  document.getElementById('libPickBody').innerHTML=pkgs.length
+    ?pkgs.map(p=>`<div class="bpitem"><span class="nm">📦 ${esc(p.name)}</span><span class="pills">${(p.files||[]).map(f=>`<span class="pill">${esc(f.category)}</span>`).join('')||'<span class="na">空包</span>'}</span><span class="act"><span class="link" onclick="applyLibPackage(${rid},${p.id})">整套导入</span></span></div>`).join('')
+    :'<div class="empty">文件库里还没有文件包。可到顶部“文件库”新建。</div>';
+  show_('mLib');}
+async function applyLibPackage(rid,pid){await api('/api/lib_apply_package','POST',{rid,package_id:pid});close_('mLib');toast('已整套导入（含消保/法审/用印）');openDetail(window._pid,1);}
 function exportOne(id,h){window.location='/api/export?id='+id+'&history='+h;}
 function exportAll(){window.location='/api/export_all?history=0';}
 
-function openReq(procId){document.getElementById('rqProc').value=procId;['rqCat','rqName','rqSeal'].forEach(x=>document.getElementById(x).value='');['rqXb','rqFs','rqYy'].forEach(x=>document.getElementById(x).checked=false);show_('mReq');}
+function openReq(procId){document.getElementById('rqProc').value=procId;['rqCat','rqName','rqSeal'].forEach(x=>document.getElementById(x).value='');['rqXb','rqFs','rqYy'].forEach(x=>document.getElementById(x).checked=false);document.getElementById('rqFile').checked=true;show_('mReq');}
 async function submitReq(){const name=document.getElementById('rqName').value.trim();if(!name){toast('填名称',true);return;}
   await api('/api/req_add','POST',{product_id:window._pid,process_id:+document.getElementById('rqProc').value,category:document.getElementById('rqCat').value.trim()||'其他',name,
-   needs_xb:document.getElementById('rqXb').checked,needs_fs:document.getElementById('rqFs').checked,needs_yy:document.getElementById('rqYy').checked,seal_party:document.getElementById('rqSeal').value.trim()});
+   needs_file:document.getElementById('rqFile').checked,needs_xb:document.getElementById('rqXb').checked,needs_fs:document.getElementById('rqFs').checked,needs_yy:document.getElementById('rqYy').checked,seal_party:document.getElementById('rqSeal').value.trim()});
   close_('mReq');openDetail(window._pid,1);}
 
 async function loadTodo(){const t=await api('/api/todo');const el=document.getElementById('todoBody');
@@ -400,19 +479,20 @@ function bpItem(i,inherited){let p='';
   if(i.cond&&i.cond!=='always')p+=`<span class="pill cond">${condText(i.cond)}</span>`;
   if(i.repeatable)p+=`<span class="pill">可多份</span>`;
   if(!i.required)p+=`<span class="pill">可选</span>`;
+  if(i.needs_file===0)p+=`<span class="pill">无需上传</span>`;
   if(!p)p='<span class="na">无审查要求</span>';
   const act=inherited?`<span class="na">继承自通用</span>`
     :`<span class="link" onclick='editBp(${JSON.stringify(i)})'>编辑</span> · <span class="link" onclick="delBp(${i.id})">删除</span>`;
   return `<div class="bpitem ${inherited?'inh':''}"><span class="nm">${esc(i.name)}</span><span class="pills">${p}</span><span class="act">${act}</span></div>`;}
 function condText(c){return {always:'总是',poster:'有海报时',merge:'仅合并版',split:'仅拆分版'}[c]||c;}
 function openBp(){document.getElementById('bpTitle').textContent='新增文件项';['bpId','bpCat','bpName','bpSeal'].forEach(x=>document.getElementById(x).value='');
-  ['bpXb','bpFs','bpYy','bpRep'].forEach(x=>document.getElementById(x).checked=false);document.getElementById('bpCond').value='always';document.getElementById('bpSort').value=0;show_('mBp');}
+  ['bpXb','bpFs','bpYy','bpRep'].forEach(x=>document.getElementById(x).checked=false);document.getElementById('bpFile').checked=true;document.getElementById('bpCond').value='always';document.getElementById('bpSort').value=0;show_('mBp');}
 function editBp(i){document.getElementById('bpTitle').textContent='编辑文件项';document.getElementById('bpId').value=i.id;document.getElementById('bpCat').value=i.category||'';
   document.getElementById('bpName').value=i.name||'';document.getElementById('bpSeal').value=i.seal_party||'';document.getElementById('bpCond').value=i.cond||'always';document.getElementById('bpSort').value=i.sort||0;
-  document.getElementById('bpXb').checked=!!i.needs_xb;document.getElementById('bpFs').checked=!!i.needs_fs;document.getElementById('bpYy').checked=!!i.needs_yy;document.getElementById('bpRep').checked=!!i.repeatable;show_('mBp');}
+  document.getElementById('bpXb').checked=!!i.needs_xb;document.getElementById('bpFs').checked=!!i.needs_fs;document.getElementById('bpYy').checked=!!i.needs_yy;document.getElementById('bpRep').checked=!!i.repeatable;document.getElementById('bpFile').checked=(i.needs_file!==0);show_('mBp');}
 async function saveBp(){const name=document.getElementById('bpName').value.trim();if(!name){toast('填名称',true);return;}
   const b={id:document.getElementById('bpId').value||null,ptype:window._tplType,process_id:window._tplProc,
-   category:document.getElementById('bpCat').value.trim(),name,required:1,needs_xb:document.getElementById('bpXb').checked,needs_fs:document.getElementById('bpFs').checked,
+   category:document.getElementById('bpCat').value.trim(),name,required:1,needs_file:document.getElementById('bpFile').checked,needs_xb:document.getElementById('bpXb').checked,needs_fs:document.getElementById('bpFs').checked,
    needs_yy:document.getElementById('bpYy').checked,seal_party:document.getElementById('bpSeal').value.trim(),cond:document.getElementById('bpCond').value,
    repeatable:document.getElementById('bpRep').checked,sort:+document.getElementById('bpSort').value};
   await api('/api/blueprint_save','POST',b);close_('mBp');loadTpl();toast('已保存');}
