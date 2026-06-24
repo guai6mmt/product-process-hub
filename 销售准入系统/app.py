@@ -26,12 +26,13 @@ SCHEMA = """
 CREATE TABLE IF NOT EXISTS meta(k TEXT PRIMARY KEY, v TEXT);
 CREATE TABLE IF NOT EXISTS institution(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, has_poster INTEGER DEFAULT 0, note TEXT DEFAULT '');
 CREATE TABLE IF NOT EXISTS product_type(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL);
-CREATE TABLE IF NOT EXISTS process(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, sort INTEGER DEFAULT 0);
+CREATE TABLE IF NOT EXISTS process(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, sort INTEGER DEFAULT 0, ptype TEXT DEFAULT '通用');
 CREATE TABLE IF NOT EXISTS blueprint_item(id INTEGER PRIMARY KEY AUTOINCREMENT, ptype TEXT DEFAULT '通用', process_id INTEGER,
   category TEXT, name TEXT, required INTEGER DEFAULT 1, needs_file INTEGER DEFAULT 1, needs_xb INTEGER DEFAULT 0, needs_fs INTEGER DEFAULT 0,
   needs_yy INTEGER DEFAULT 0, seal_party TEXT DEFAULT '', cond TEXT DEFAULT 'always', repeatable INTEGER DEFAULT 0, sort INTEGER DEFAULT 0);
 CREATE TABLE IF NOT EXISTS product(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, ptype TEXT DEFAULT '通用',
-  institution_id INTEGER, contract_form TEXT DEFAULT '合并', created_at TEXT);
+  institution_id INTEGER, contract_form TEXT DEFAULT '合并', created_at TEXT,
+  issue_start_date TEXT DEFAULT '', issue_end_date TEXT DEFAULT '', established_date TEXT DEFAULT '');
 CREATE TABLE IF NOT EXISTS requirement(id INTEGER PRIMARY KEY AUTOINCREMENT, product_id INTEGER, process_id INTEGER,
   category TEXT, name TEXT, required INTEGER DEFAULT 1, needs_file INTEGER DEFAULT 1, seal_party TEXT DEFAULT '',
   needs_xb INTEGER, needs_fs INTEGER, needs_yy INTEGER, xb_status TEXT, fs_status TEXT, yy_status TEXT, sort INTEGER DEFAULT 0);
@@ -86,16 +87,43 @@ def mirror_map(conn, product_id):
     return {}
 
 
+def process_applies(ptype, proc):
+    owner = proc["ptype"] if "ptype" in proc.keys() else "通用"
+    return owner in ("", None, "通用", ptype)
+
+
+def delete_process(conn, pid):
+    for f in conn.execute("SELECT filepath FROM docfile WHERE requirement_id IN (SELECT id FROM requirement WHERE process_id=?)", (pid,)).fetchall():
+        try:
+            os.remove(f["filepath"])
+        except Exception:
+            pass
+    conn.execute("DELETE FROM docfile WHERE requirement_id IN (SELECT id FROM requirement WHERE process_id=?)", (pid,))
+    conn.execute("DELETE FROM review_log WHERE requirement_id IN (SELECT id FROM requirement WHERE process_id=?)", (pid,))
+    conn.execute("DELETE FROM requirement WHERE process_id=?", (pid,))
+    conn.execute("DELETE FROM blueprint_item WHERE process_id=?", (pid,))
+    conn.execute("DELETE FROM process_mirror WHERE process_id=? OR source_process_id=?", (pid, pid))
+    conn.execute("DELETE FROM process WHERE id=?", (pid,))
+
+
 def init_db():
     conn = db()
     conn.executescript(SCHEMA)
+    _process_cols = {r[1] for r in conn.execute("PRAGMA table_info(process)")}
+    if "ptype" not in _process_cols:
+        conn.execute("ALTER TABLE process ADD COLUMN ptype TEXT DEFAULT '通用'")
+        conn.execute("UPDATE process SET ptype='通用' WHERE ptype IS NULL OR ptype=''")
+    _product_cols = {r[1] for r in conn.execute("PRAGMA table_info(product)")}
+    for _col in ("issue_start_date", "issue_end_date", "established_date"):
+        if _col not in _product_cols:
+            conn.execute("ALTER TABLE product ADD COLUMN %s TEXT DEFAULT ''" % _col)
     for _tbl in ("blueprint_item", "requirement"):
         _cols = {r[1] for r in conn.execute("PRAGMA table_info(%s)" % _tbl)}
         if "needs_file" not in _cols:
             conn.execute("ALTER TABLE %s ADD COLUMN needs_file INTEGER DEFAULT 1" % _tbl)
     if conn.execute("SELECT COUNT(*) FROM process").fetchone()[0] == 0:
         for n, s in SEED_PROCESSES:
-            conn.execute("INSERT INTO process(name,sort) VALUES(?,?)", (n, s))
+            conn.execute("INSERT INTO process(name,sort,ptype) VALUES(?,?,?)", (n, s, "通用"))
     if conn.execute("SELECT COUNT(*) FROM product_type").fetchone()[0] == 0:
         for n in SEED_TYPES:
             conn.execute("INSERT INTO product_type(name) VALUES(?)", (n,))
@@ -146,6 +174,8 @@ def add_requirement(conn, pid, proc_id, category, name, xb, fs, yy, seal, sort=0
 
 def instantiate(conn, pid, ptype, n_supp, has_poster, form):
     for p in conn.execute("SELECT * FROM process ORDER BY sort,id").fetchall():
+        if not process_applies(ptype, p):
+            continue
         for it in blueprint_for(conn, ptype, p["id"]):
             c = it["cond"]
             if c == "poster" and not has_poster:
@@ -392,10 +422,19 @@ class Handler(BaseHTTPRequestHandler):
             b = self._body()
             conn = db()
             if path == "/api/products":
-                pidv = conn.execute("INSERT INTO product(name,ptype,contract_form,created_at) VALUES(?,?,?,?)",
-                                    (b.get("name", "").strip(), b.get("ptype", "通用"), b.get("contract_form", "合并"), now())).lastrowid
+                pidv = conn.execute("""INSERT INTO product(name,ptype,contract_form,created_at,issue_start_date,issue_end_date,established_date)
+                                    VALUES(?,?,?,?,?,?,?)""",
+                                    (b.get("name", "").strip(), b.get("ptype", "通用"), b.get("contract_form", "合并"), now(),
+                                     b.get("issue_start_date", "").strip(), b.get("issue_end_date", "").strip(),
+                                     b.get("established_date", "").strip())).lastrowid
                 instantiate(conn, pidv, b.get("ptype", "通用"), int(b.get("n_supp", 1)), bool(b.get("has_poster")), b.get("contract_form", "合并"))
                 conn.commit(); conn.close(); return self._json({"id": pidv})
+            if path == "/api/product_update":
+                pidv = int(b["id"])
+                conn.execute("""UPDATE product SET name=?, issue_start_date=?, issue_end_date=?, established_date=? WHERE id=?""",
+                             (b.get("name", "").strip(), b.get("issue_start_date", "").strip(),
+                              b.get("issue_end_date", "").strip(), b.get("established_date", "").strip(), pidv))
+                conn.commit(); conn.close(); return self._json({"ok": True})
             if path == "/api/product_delete":
                 pidv = int(b["id"])
                 conn.execute("DELETE FROM docfile WHERE requirement_id IN (SELECT id FROM requirement WHERE product_id=?)", (pidv,))
@@ -514,21 +553,11 @@ class Handler(BaseHTTPRequestHandler):
                 conn.commit(); conn.close(); return self._json({"ok": True})
             if path == "/api/process_add":
                 mx = conn.execute("SELECT MAX(sort) m FROM process").fetchone()["m"] or 0
-                conn.execute("INSERT INTO process(name,sort) VALUES(?,?)", (b.get("name", "").strip(), mx + 1))
+                conn.execute("INSERT INTO process(name,sort,ptype) VALUES(?,?,?)", (b.get("name", "").strip(), mx + 1, b.get("ptype", "通用") or "通用"))
                 conn.commit(); conn.close(); return self._json({"ok": True})
             if path == "/api/process_delete":
                 pid = int(b["id"])
-                for f in conn.execute("SELECT filepath FROM docfile WHERE requirement_id IN (SELECT id FROM requirement WHERE process_id=?)", (pid,)).fetchall():
-                    try:
-                        os.remove(f["filepath"])
-                    except Exception:
-                        pass
-                conn.execute("DELETE FROM docfile WHERE requirement_id IN (SELECT id FROM requirement WHERE process_id=?)", (pid,))
-                conn.execute("DELETE FROM review_log WHERE requirement_id IN (SELECT id FROM requirement WHERE process_id=?)", (pid,))
-                conn.execute("DELETE FROM requirement WHERE process_id=?", (pid,))
-                conn.execute("DELETE FROM blueprint_item WHERE process_id=?", (pid,))
-                conn.execute("DELETE FROM process_mirror WHERE process_id=? OR source_process_id=?", (pid, pid))
-                conn.execute("DELETE FROM process WHERE id=?", (pid,))
+                delete_process(conn, pid)
                 conn.commit(); conn.close(); return self._json({"ok": True})
             if path == "/api/ptype_add":
                 conn.execute("INSERT INTO product_type(name) VALUES(?)", (b.get("name", "").strip(),))
@@ -536,6 +565,8 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/ptype_delete":
                 nm = b.get("name", "").strip()
                 if nm and nm != "通用":
+                    for pr in conn.execute("SELECT id FROM process WHERE ptype=?", (nm,)).fetchall():
+                        delete_process(conn, pr["id"])
                     conn.execute("DELETE FROM blueprint_item WHERE ptype=?", (nm,))
                     conn.execute("DELETE FROM product_type WHERE name=?", (nm,))
                 conn.commit(); conn.close(); return self._json({"ok": True})
@@ -581,6 +612,8 @@ class Handler(BaseHTTPRequestHandler):
         procs = []
         prior_done = True
         for pr in conn.execute("SELECT * FROM process ORDER BY sort,id").fetchall():
+            if not process_applies(p["ptype"], pr):
+                continue
             src = mm.get(pr["id"], pr["id"])
             mirrored = pr["id"] in mm
             reqs = conn.execute("SELECT * FROM requirement WHERE product_id=? AND process_id=? ORDER BY sort,id", (pid, src)).fetchall()
