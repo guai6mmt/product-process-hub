@@ -5,29 +5,58 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>产品流程与文件管理系统</title>
 <style>
-:root{--bg:#f5f6f8;--card:#fff;--line:#e4e7ec;--txt:#1f2733;--muted:#6b7480;--blue:#2f5fcf;--blue-dk:#244aa0;
---green:#1d9e57;--amber:#c47d12;--red:#cc3b3b;--green-bg:#e8f6ee;--amber-bg:#fbf1de;--red-bg:#fbe9e9;--blue-bg:#eaf0fc;--gray-bg:#eef0f3;}
+:root{--bg:#f1f4f4;--card:#fff;--line:#e5eae9;--txt:#16211f;--muted:#7f8c89;--blue:#0e7a67;--blue-dk:#0a5749;
+--green:#0e7a67;--amber:#b77912;--red:#c94c4c;--green-bg:#e6f3ef;--amber-bg:#fff5dd;--red-bg:#fdecec;--blue-bg:#e9f6f2;--gray-bg:#edf1f0;--shadow:0 10px 28px rgba(22,33,31,.07);}
 *{box-sizing:border-box}
-body{margin:0;font-family:"Microsoft YaHei","Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--txt);font-size:14px}
-header{background:var(--card);border-bottom:1px solid var(--line);padding:0 20px;display:flex;align-items:center;gap:16px;height:54px;position:sticky;top:0;z-index:20}
-.logo{font-weight:700;font-size:16px;color:var(--blue-dk)}
-nav{display:flex;gap:4px;flex:1}
-nav button{background:none;border:none;padding:8px 14px;border-radius:7px;cursor:pointer;color:var(--muted);font-size:14px}
-nav button.active{background:var(--blue-bg);color:var(--blue-dk);font-weight:600}
-nav button:hover{background:var(--gray-bg)}
-.btn{background:var(--blue);color:#fff;border:none;padding:8px 16px;border-radius:7px;cursor:pointer;font-size:14px}
+body{margin:0;font-family:"Noto Sans SC","Microsoft YaHei","PingFang SC","Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--txt);font-size:14px;-webkit-font-smoothing:antialiased}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-thumb{background:#d5dddb;border-radius:6px;border:2px solid var(--bg)}
+.app-shell{display:flex;min-height:100vh;background:var(--bg)}
+.side{width:236px;flex-shrink:0;background:#fff;border-right:1px solid var(--line);display:flex;flex-direction:column;position:sticky;top:0;height:100vh}
+.brand{display:flex;align-items:center;gap:10px;padding:20px 18px 16px}
+.brand-mark{width:32px;height:32px;border-radius:9px;background:var(--blue);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700}
+.brand-name{font-weight:700;font-size:14px;letter-spacing:.5px}
+.brand-sub{font-size:11px;color:#8a9692;margin-top:2px}
+nav{display:flex;flex-direction:column;gap:3px;padding:8px 12px;flex:1}
+.nav-label{font-size:11px;color:#a6b0ad;font-weight:700;padding:12px 12px 4px;letter-spacing:1px}
+nav button{background:none;border:none;padding:11px 12px;border-radius:9px;cursor:pointer;color:#46514f;font-size:14px;text-align:left;display:flex;align-items:center;gap:10px;font-weight:600}
+nav button.active{background:var(--blue);color:#fff}
+nav button:hover:not(.active){background:var(--gray-bg)}
+.nav-ico{font-size:16px;line-height:1;width:18px;text-align:center}
+.side-user{padding:14px 16px;border-top:1px solid #eef1f1;display:flex;align-items:center;gap:10px}
+.avatar{width:32px;height:32px;border-radius:50%;background:#eef6f3;color:var(--blue-dk);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px}
+.workspace{flex:1;min-width:0;display:flex;flex-direction:column}
+.topbar{height:62px;flex-shrink:0;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:14px;padding:0 28px;position:sticky;top:0;z-index:20}
+.page-title{font-size:16px;font-weight:700}
+.spacer{flex:1}
+.btn{background:var(--blue);color:#fff;border:none;padding:8px 16px;border-radius:8px;cursor:pointer;font-size:14px;font-weight:600}
 .btn:hover{background:var(--blue-dk)}
 .btn.ghost{background:var(--card);color:var(--txt);border:1px solid var(--line)}
-.btn.sm{padding:4px 9px;font-size:12px}
+.btn.sm{padding:6px 11px;font-size:12px}
 .btn.danger{background:none;color:var(--red);border:1px solid var(--red)}
-main{max-width:1100px;margin:20px auto;padding:0 20px}
+.content{flex:1;overflow:auto;padding:26px 28px 60px}
 .view{display:none}.view.active{display:block}
 h2{font-size:18px;margin:0 0 4px}.sub{color:var(--muted);margin-bottom:16px}
-.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px}
-.card.click{cursor:pointer}.card.click:hover{box-shadow:0 2px 10px rgba(0,0,0,.06);border-color:#c9d2e0}
-.card h3{margin:0 0 6px;font-size:16px}.meta{color:var(--muted);font-size:13px;margin-bottom:10px}
-.bar{height:8px;background:var(--gray-bg);border-radius:5px;overflow:hidden;margin:8px 0}
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:24px}
+.stat{background:#fff;border:1px solid var(--line);border-radius:13px;padding:17px 19px}
+.stat .k{font-size:12px;color:#8a9692;font-weight:600}.stat .v{font-size:30px;font-weight:800;margin:6px 0 2px;line-height:1}.stat .s{font-size:12px;color:#a6b0ad}
+.section-head{display:flex;align-items:center;gap:8px;margin-bottom:13px}
+.section-head b{font-size:13px;color:#46514f}.section-head span{font-size:12px;color:#a6b0ad}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:15px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 19px}
+.card.click{cursor:pointer;transition:.15s}.card.click:hover{box-shadow:var(--shadow);border-color:#cfe0da;transform:translateY(-2px)}
+.card h3{margin:0 0 6px;font-size:15.5px;line-height:1.35}.meta{color:var(--muted);font-size:12.5px;margin-bottom:12px}
+.child-list{margin-top:14px;border-top:1px solid var(--line);padding-top:12px}
+.child-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.child-row{border:1px solid var(--line);border-radius:12px;background:#fff;padding:13px 14px;margin-bottom:8px;cursor:pointer;transition:.15s}
+.child-row:hover{border-color:#cfe0da;box-shadow:0 5px 16px rgba(22,33,31,.06)}
+.child-top{display:flex;align-items:center;gap:12px;justify-content:space-between}
+.child-name{font-weight:750;font-size:14px;line-height:1.35;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.child-status{flex-shrink:0}
+.child-progress{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;margin-top:9px;color:var(--muted);font-size:12px}
+.child-progress .bar{margin:0;height:6px}
+.child-pct{font-weight:800;color:var(--txt)}
+.bar{height:7px;background:var(--gray-bg);border-radius:5px;overflow:hidden;margin:8px 0}
 .bar>i{display:block;height:100%;background:var(--blue)}.bar>i.full{background:var(--green)}
 .badge{display:inline-block;padding:2px 9px;border-radius:20px;font-size:12px;font-weight:600}
 .b-green{background:var(--green-bg);color:var(--green)}.b-amber{background:var(--amber-bg);color:var(--amber)}
@@ -38,14 +67,22 @@ th{background:#fafbfc;color:var(--muted);font-weight:600}tr:last-child td{border
 select,input[type=text],input[type=number],input[type=date]{padding:5px 7px;border:1px solid var(--line);border-radius:6px;font-size:13px;background:#fff}
 select.s-通过,select.s-已用印{border-color:var(--green);color:var(--green)}
 select.s-退回{border-color:var(--red);color:var(--red)}select.s-送审中{border-color:var(--amber);color:var(--amber)}
-.tabs{display:flex;gap:6px;flex-wrap:wrap;margin:14px 0 6px;border-bottom:2px solid var(--line)}
-.tabs button{background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;padding:8px 14px;cursor:pointer;color:var(--muted);font-size:14px}
-.tabs button.active{color:var(--blue-dk);border-bottom-color:var(--blue);font-weight:600}
+.hero{background:#fff;border:1px solid var(--line);border-radius:14px;padding:20px 22px;margin-bottom:16px}
+.hero h2{font-size:20px;font-weight:800;margin:0}
+.hero-actions{display:flex;gap:8px;flex-shrink:0;flex-wrap:wrap}
+.hero-progress{display:flex;align-items:center;gap:16px;margin-top:18px}
+.hero-progress strong{font-size:30px;line-height:1}.hero-progress strong span{font-size:16px;color:var(--muted)}
+.tabs{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:11px;margin:0 0 18px;border-bottom:none}
+.tabs button{background:#fff;border:1px solid var(--line);border-radius:13px;padding:14px 15px;cursor:pointer;color:var(--txt);font-size:13.5px;text-align:left;font-weight:700;display:flex;justify-content:space-between;align-items:center;min-height:72px}
+.tabs button.active{color:var(--blue-dk);border-color:var(--blue);background:var(--blue-bg);box-shadow:inset 0 -4px 0 rgba(14,122,103,.18)}
+.tabs button .badge{margin-left:8px}
 .banner{background:var(--amber-bg);color:var(--amber);padding:8px 12px;border-radius:8px;font-size:13px;margin:10px 0}
-.catlabel{font-weight:700;color:var(--blue-dk);margin:14px 0 6px;font-size:13px}
-.reqcard{background:var(--card);border:1px solid var(--line);border-radius:9px;margin-bottom:8px;overflow:hidden}
+.catlabel{font-weight:800;color:var(--blue-dk);margin:18px 0 9px;font-size:12px;letter-spacing:.5px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.catopts{display:inline-flex;align-items:center;gap:6px;letter-spacing:0;font-weight:600;color:var(--muted)}
+.catopts select{padding:3px 8px;border-radius:999px;border-color:#d9e4e1;color:var(--blue-dk);font-weight:700;background:#fff}
+.reqcard{background:var(--card);border:1px solid var(--line);border-radius:11px;margin-bottom:8px;overflow:hidden}
 .reqcard.done{border-color:#bfe3cd}
-.reqcard>summary{list-style:none;cursor:pointer;padding:11px 14px;display:flex;align-items:center;gap:10px}
+.reqcard>summary{list-style:none;cursor:pointer;padding:13px 16px;display:flex;align-items:center;gap:14px}
 .reqcard>summary::-webkit-details-marker{display:none}
 .reqcard>summary::before{content:"▸";color:var(--muted);font-size:12px}
 .reqcard[open]>summary::before{content:"▾"}
@@ -63,7 +100,7 @@ select.s-退回{border-color:var(--red);color:var(--red)}select.s-送审中{bord
 .fblock.flash{animation:flash 1.4s ease}
 @keyframes flash{0%,100%{background:transparent}30%{background:var(--amber-bg)}}
 .rejnote{flex-basis:100%;color:var(--red);background:var(--red-bg);border-radius:6px;padding:5px 9px;font-size:12px;margin-top:6px}
-.rqbody{padding:4px 14px 14px 32px;border-top:1px solid var(--line);background:#fcfcfd}
+.rqbody{padding:4px 16px 14px 36px;border-top:1px solid var(--line);background:#fbfcfc}
 .fblock{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px dashed var(--line);flex-wrap:wrap}
 .fblock:last-child{border-bottom:none}
 .fblabel{width:130px;font-size:13px;color:var(--muted);display:flex;align-items:center;gap:7px}
@@ -71,12 +108,19 @@ select.s-退回{border-color:var(--red);color:var(--red)}select.s-送审中{bord
 .files{flex:1;display:flex;flex-wrap:wrap;gap:6px;min-width:160px}
 .fchip{background:var(--gray-bg);border-radius:6px;padding:2px 8px;font-size:12px}
 .fchip b{color:var(--blue-dk)}
+.libpkg{margin-bottom:12px}
+.libpkg-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:12px}
+.libpkg-title{display:flex;align-items:center;gap:8px;font-weight:800;font-size:15px}
+.libpkg-grid{display:grid;gap:8px}
+.libcat{display:grid;grid-template-columns:108px 1fr auto;gap:10px;align-items:center;padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:#fbfcfc}
+.libcat-name{font-weight:700;color:var(--blue-dk);font-size:13px}
+.libcat-files{display:flex;flex-wrap:wrap;gap:6px;min-width:0}
 .xdel{color:var(--red);cursor:pointer;font-weight:700;margin-left:3px}
 .rqfoot{padding-top:10px;display:flex;gap:8px}
 .link{color:var(--blue);cursor:pointer;text-decoration:none}.na{color:#b9c0c9;font-size:12px}.muted{color:var(--muted)}
 .modal-bg{display:none;position:fixed;inset:0;background:rgba(20,28,40,.45);z-index:50;align-items:center;justify-content:center}
 .modal-bg.show{display:flex}
-.modal{background:#fff;border-radius:12px;padding:22px;width:460px;max-width:93vw;max-height:90vh;overflow:auto}
+.modal{background:#fff;border-radius:14px;padding:22px;width:460px;max-width:93vw;max-height:90vh;overflow:auto;box-shadow:0 20px 70px rgba(22,33,31,.22)}
 .modal h3{margin:0 0 16px}
 .field{margin-bottom:13px}.field label{display:block;font-size:13px;color:var(--muted);margin-bottom:5px}
 .field input[type=text],.field input[type=number],.field input[type=date],.field select{width:100%}
@@ -109,29 +153,54 @@ select.s-退回{border-color:var(--red);color:var(--red)}select.s-送审中{bord
 .pill{display:inline-flex;align-items:center;gap:5px;font-size:12px;padding:2px 9px;border-radius:20px;background:var(--gray-bg);color:var(--muted);border:1px solid var(--line)}
 .pill .dot{width:6px;height:6px;border-radius:50%}
 .pill.cond{background:var(--amber-bg);color:var(--amber);border-color:transparent}
+@media (max-width:860px){
+  .app-shell{display:block}.side{position:relative;width:auto;height:auto}.brand{padding-bottom:8px}nav{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));padding-bottom:14px}.nav-label,.side-user{display:none}
+  .topbar{top:0;padding:0 14px}.content{padding:18px 14px 42px}.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.cards{grid-template-columns:1fr}.tabs{grid-template-columns:1fr}.hero-progress{align-items:flex-start}.row{display:block}
+}
 </style>
 </head>
 <body>
-<header>
-  <span class="logo">产品流程 · 文件管理</span>
+<div class="app-shell">
+<aside class="side">
+  <div class="brand">
+    <div class="brand-mark">资</div>
+    <div>
+      <div class="brand-name">产品全生命周期</div>
+      <div class="brand-sub">流程 · 文件 · 审查作业台</div>
+    </div>
+  </div>
   <nav>
-    <button data-v="dashboard" class="active" onclick="nav('dashboard')">驾驶舱</button>
-    <button data-v="todo" onclick="nav('todo')">今日待办</button>
-    <button data-v="tpl" onclick="nav('tpl')">模板管理</button>
-    <button data-v="lib" onclick="nav('lib')">文件库</button>
+    <div class="nav-label">工作区</div>
+    <button data-v="dashboard" class="active" onclick="nav('dashboard')"><span class="nav-ico">▦</span>产品驾驶舱</button>
+    <button data-v="todo" onclick="nav('todo')"><span class="nav-ico">✓</span>今日待办</button>
+    <div class="nav-label">配置 · 复用</div>
+    <button data-v="tpl" onclick="nav('tpl')"><span class="nav-ico">⊞</span>模板管理</button>
+    <button data-v="lib" onclick="nav('lib')"><span class="nav-ico">▤</span>共用文件库</button>
   </nav>
+  <div class="side-user">
+    <div class="avatar">李</div>
+    <div style="min-width:0">
+      <div style="font-size:13px;font-weight:600">李静 · 产品运营</div>
+      <div style="font-size:11px;color:#8a9692">合规运营部</div>
+    </div>
+  </div>
+</aside>
+<div class="workspace">
+<header class="topbar">
+  <div class="page-title" id="pageTitle">产品驾驶舱</div>
+  <div class="spacer"></div>
   <button class="btn ghost" onclick="exportAll()">导出全部</button>
   <button class="btn" onclick="openCreate()">＋ 一键开产品</button>
 </header>
-<main>
+<main class="content">
   <section id="dashboard" class="view active">
-    <h2>产品驾驶舱</h2><div class="sub">点产品卡片查看其全部流程的清单与文件。</div>
+    <div id="dashStats"></div>
+    <div class="section-head"><b>在管产品</b><span>点击卡片查看其全部流程的清单与文件</span></div>
     <div id="cards" class="cards"></div>
   </section>
 
   <section id="detail" class="view">
-    <button class="btn ghost sm" onclick="nav('dashboard')">← 返回</button>
-    <div id="detailBody" style="margin-top:12px"></div>
+    <div id="detailBody"></div>
   </section>
 
   <section id="todo" class="view">
@@ -141,7 +210,11 @@ select.s-退回{border-color:var(--red);color:var(--red)}select.s-送审中{bord
 
   <section id="tpl" class="view">
     <h2>模板管理</h2>
-    <div class="sub">行＝产品类型，列＝流程。点格子查看/编辑该清单；留空的格子自动继承“通用”。开产品时据此生成。</div>
+    <div class="sub">产品系列模板用于开产品系列；具体产品模板用于在系列下开 FOF1 号、FOF2 号等具体产品。</div>
+    <div class="toolbar">
+      <button class="btn sm" id="tplScopeSeries" onclick="setTplScope('series')">产品系列模板</button>
+      <button class="btn ghost sm" id="tplScopeProduct" onclick="setTplScope('product')">具体产品模板</button>
+    </div>
     <div id="tplMatrix"></div>
     <div id="bpBody" style="margin-top:18px"></div>
   </section>
@@ -153,21 +226,24 @@ select.s-退回{border-color:var(--red);color:var(--red)}select.s-送审中{bord
   </section>
 
 </main>
+</div>
+</div>
 
 <div class="modal-bg" id="mCreate"><div class="modal">
-  <h3>一键开产品</h3>
-  <div class="field"><label>产品名称 *</label><input type="text" id="cName" placeholder="如：XX私募证券投资基金一期"></div>
+  <h3>新建</h3>
+  <div class="field"><label>创建类型</label><select id="cKind" onchange="toggleCreateKind()">
+    <option value="series">产品系列</option>
+    <option value="product">系列下的具体产品</option>
+  </select></div>
+  <div class="field" id="cParentField" style="display:none"><label>所属产品系列 *</label><select id="cParent"></select></div>
+  <div class="field"><label>名称 *</label><input type="text" id="cName" placeholder="如：国泰海通多资产多策略C款FOFX号"></div>
   <div class="field"><label>产品类型</label><select id="cType"></select></div>
   <div class="row">
     <div class="field"><label>发行开始时间</label><input type="date" id="cIssueStart"></div>
     <div class="field"><label>发行结束时间</label><input type="date" id="cIssueEnd"></div>
     <div class="field"><label>产品成立时间</label><input type="date" id="cEstablished"></div>
   </div>
-  <div class="row">
-    <div class="field"><label>补充协议份数</label><input type="number" id="cSupp" min="1" value="1"></div>
-    <div class="field"><label>合同形态</label><select id="cForm"><option value="合并">合并（1份）</option><option value="拆分">拆分（3份）</option></select></div>
-  </div>
-  <div class="field"><label><input type="checkbox" id="cPoster"> 含海报（默认随机构）</label></div>
+  <div class="banner">补充协议份数、合同形态、是否含海报不再在创建时选择，后续在对应流程清单里处理。</div>
   <div class="modal-actions"><button class="btn ghost" onclick="close_('mCreate')">取消</button><button class="btn" onclick="submitCreate()">生成清单</button></div>
 </div></div>
 
@@ -267,20 +343,54 @@ function isReqOpen(rid){const key=openStateKey();return !!(REQ_OPEN[key]&&REQ_OP
 function procOwner(p){return (p&&p.ptype)||'通用';}
 function procAppliesTo(pt,p){const owner=procOwner(p);return !owner||owner==='通用'||owner===pt;}
 
+function pageName(v){return {dashboard:'产品驾驶舱',todo:'今日待办',tpl:'模板管理',lib:'共用文件库',detail:'产品流程详情'}[v]||'产品全生命周期';}
 function nav(v){document.querySelectorAll('.view').forEach(s=>s.classList.remove('active'));document.getElementById(v).classList.add('active');
  document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.dataset.v===v));
+ document.getElementById('pageTitle').textContent=pageName(v);
  if(v==='dashboard')loadDash();if(v==='todo')loadTodo();if(v==='tpl')loadTpl();if(v==='lib')loadLibrary();}
-function navDetail(){document.querySelectorAll('.view').forEach(s=>s.classList.remove('active'));document.getElementById('detail').classList.add('active');document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));}
+function navDetail(){document.querySelectorAll('.view').forEach(s=>s.classList.remove('active'));document.getElementById('detail').classList.add('active');document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));document.getElementById('pageTitle').textContent=pageName('detail');}
 
 async function loadDash(){
   const ps=await api('/api/products');const el=document.getElementById('cards');
+  const series=ps.filter(p=>(p.kind||'series')==='series'),children=ps.filter(p=>p.kind==='product');
+  const total=series.length,ready=series.filter(p=>p.ready).length,doing=total-ready;
+  const itemTotal=ps.reduce((s,p)=>s+(p.total||0),0),itemDone=ps.reduce((s,p)=>s+(p.done||0),0),todo=Math.max(itemTotal-itemDone,0);
+  document.getElementById('dashStats').innerHTML=`<div class="stats">
+    <div class="stat"><div class="k">产品系列</div><div class="v" style="color:#16211f">${total}</div><div class="s">先完成准入到推介发行</div></div>
+    <div class="stat"><div class="k">具体产品</div><div class="v" style="color:var(--green)">${children.length}</div><div class="s">挂在产品系列下面</div></div>
+    <div class="stat"><div class="k">系列推进中</div><div class="v" style="color:var(--amber)">${doing}</div><div class="s">仍有流程待处理</div></div>
+    <div class="stat"><div class="k">待办文件项</div><div class="v" style="color:#315b55">${todo}</div><div class="s">未到位清单项</div></div>
+  </div>`;
   if(!ps.length){el.innerHTML='<div class="empty">还没有产品。点右上角"＋ 一键开产品"开始。</div>';return;}
-  el.innerHTML=ps.map(p=>`<div class="card click" onclick="openDetail(${p.id})">
-    <h3>${esc(p.name)}</h3><div class="meta">${esc(p.ptype||'—')}${productDates(p)?' · '+esc(productDates(p)):''}</div>
+  el.innerHTML=series.map(p=>{const kids=children.filter(c=>c.parent_id===p.id);return `<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
+      <h3 class="link" onclick="openDetail(${p.id})">${esc(p.name)}</h3>
+      <span class="badge ${p.ready?'b-green':'b-amber'}">产品系列 · ${p.ready?'已完成':'进行中'}</span>
+    </div>
+    <div class="meta">${esc(p.ptype||'—')}${productDates(p)?' · '+esc(productDates(p)):''} · ${kids.length} 个具体产品</div>
+    <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:7px">
+      <span class="muted">${p.done}/${p.total} 项到位</span>
+      <strong style="font-size:18px">${p.progress}%</strong>
+    </div>
     <div class="bar"><i class="${p.ready?'full':''}" style="width:${p.progress}%"></i></div>
-    <div style="display:flex;justify-content:space-between;align-items:center">
-      <span class="muted">${p.done}/${p.total} 项到位 · ${p.progress}%</span>
-      <span class="badge ${p.ready?'b-green':'b-amber'}">${p.ready?'全部备齐':'进行中'}</span></div></div>`).join('');
+    <div class="child-list">
+      <div class="child-head">
+        <span class="muted">具体产品</span>
+        <button class="btn ghost sm" onclick="openCreate('product',${p.id})">＋ 开具体产品</button>
+      </div>
+      ${kids.length?kids.map(k=>`<div class="child-row" onclick="openDetail(${k.id})">
+        <div class="child-top">
+          <div class="child-name">${esc(k.name)}</div>
+          <span class="badge child-status ${k.ready?'b-green':'b-amber'}">${k.ready?'已备齐':'进行中'}</span>
+        </div>
+        <div class="child-progress">
+          <span>${k.done}/${k.total} 到位</span>
+          <div class="bar"><i class="${k.ready?'full':''}" style="width:${k.progress}%"></i></div>
+          <span class="child-pct">${k.progress}%</span>
+        </div>
+      </div>`).join(''):'<div class="na">还没有具体产品。</div>'}
+    </div>
+  </div>`;}).join('');
 }
 
 async function openDetail(id,keepTab){
@@ -292,15 +402,26 @@ async function openDetail(id,keepTab){
 function renderDetail(){
   const d=window._d;const tabs=d.processes;
   const dates=productDates(d);
-  let head=`<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">
-    <div><h2 style="display:inline">${esc(d.name)}</h2> <span class="badge ${d.ready?'b-green':'b-amber'}">${d.ready?'全部备齐':'进行中'}</span>
-    <div class="sub">${esc(d.ptype||'—')} · 合同:${esc(d.contract_form)}${dates?' · '+esc(dates):''} · 总进度 ${d.done}/${d.total}（${d.progress}%）</div></div>
-    <div style="display:flex;gap:8px"><button class="btn ghost sm" onclick="openProductEdit()">编辑信息</button><button class="btn ghost sm" onclick="exportOne(${d.id},0)">导出文件包</button>
-    <button class="btn ghost sm" onclick="exportOne(${d.id},1)">导出(含历史)</button>
-    <button class="btn danger sm" onclick="delProduct(${d.id})">删除产品</button></div></div>`;
+  const isSeries=(d.kind||'series')==='series';
+  let head=`<div style="display:flex;align-items:center;gap:6px;color:#8a9692;font-size:13px;cursor:pointer;margin-bottom:14px;width:fit-content" onclick="nav('dashboard')"><span style="font-size:16px">‹</span> 返回驾驶舱</div>
+    <div class="hero">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap">
+        <div style="min-width:0">
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <h2>${esc(d.name)}</h2>
+            <span class="badge ${d.ready?'b-green':'b-amber'}">${isSeries?'产品系列':'具体产品'} · ${d.ready?'已完成':'进行中'}</span>
+          </div>
+          <div class="meta" style="margin-top:8px">${esc(d.ptype||'—')}${d.series_name?' · 所属系列：'+esc(d.series_name):''}${dates?' · '+esc(dates):''}</div>
+        </div>
+        <div class="hero-actions">${isSeries?`<button class="btn sm" onclick="openCreate('product',${d.id})">＋ 开具体产品</button>`:''}<button class="btn ghost sm" onclick="openProductEdit()">编辑信息</button><button class="btn ghost sm" onclick="exportOne(${d.id},0)">导出文件包</button>
+        <button class="btn ghost sm" onclick="exportOne(${d.id},1)">导出(含历史)</button>
+        <button class="btn danger sm" onclick="delProduct(${d.id})">删除${isSeries?'系列':'产品'}</button></div>
+      </div>
+      <div class="hero-progress"><strong>${d.progress}<span>%</span></strong><div style="flex:1"><div class="bar"><i class="${d.ready?'full':''}" style="width:${d.progress}%"></i></div><div class="muted" style="margin-top:6px">总进度 ${d.done}/${d.total} 项到位</div></div></div>
+    </div>`;
   if(!tabs.length){document.getElementById('detailBody').innerHTML=head+'<div class="empty">该产品没有清单项。</div>';return;}
   if(window._tab>=tabs.length)window._tab=0;
-  let tabbar=`<div class="tabs">`+tabs.map((t,i)=>`<button class="${i===window._tab?'active':''}" onclick="window._tab=${i};renderDetail()">${esc(t.name)} <span class="badge ${t.ready?'b-green':'b-gray'}" style="margin-left:4px">${t.done}/${t.total}</span></button>`).join('')+`</div>`;
+  let tabbar=`<div class="tabs">`+tabs.map((t,i)=>`<button class="${i===window._tab?'active':''}" onclick="window._tab=${i};renderDetail()"><span><span class="badge ${i===window._tab?'b-green':'b-gray'}" style="margin-right:8px">${i+1}</span>${esc(t.name)}</span><span class="muted">${t.done}/${t.total}</span></button>`).join('')+`</div>`;
   const t=tabs[window._tab];
   const onlyTodo=!!window._onlyTodo;
   const reqs=t.requirements.filter(r=>!onlyTodo||!r.done);
@@ -314,8 +435,34 @@ function renderDetail(){
     <button class="btn ghost sm" onclick="importFromProduct(${t.id})" title="把其他产品本流程已上传的文件复制过来">📥 从其他产品导入</button>
     <button class="btn ghost sm" onclick="openReq(${t.id})">＋ 增加一项</button></div>`;
   if(!reqs.length){body+=`<div class="empty">${onlyTodo?'本流程已全部到位 🎉':'该流程没有清单项。'}</div>`;}
-  else{let cat='';body+=reqs.map(r=>{let h='';if(r.category!==cat){cat=r.category;h=`<div class="catlabel">${esc(cat)}</div>`;}return h+reqCard(r);}).join('');}
+  else{let cat='';body+=reqs.map(r=>{let h='';if(r.category!==cat){cat=r.category;const group=reqs.filter(x=>x.category===cat);h=catHeader(cat,group);}return h+reqCard(r);}).join('');}
   document.getElementById('detailBody').innerHTML=head+tabbar+body;
+}
+function catHeader(cat,items){
+  const d=window._d||{};
+  let opts='';
+  if(cat==='宣传材料'){
+    opts+=`<span class="catopts">海报
+      <select onchange="setProductOption('has_poster',this.value==='1')">
+        <option value="0" ${d.has_poster?'':'selected'}>无</option>
+        <option value="1" ${d.has_poster?'selected':''}>有</option>
+      </select></span>`;
+  }
+  if(cat==='合同'&&items.some(x=>(x.name||'').includes('合并版')||(x.name||'').includes('拆分版'))){
+    opts+=`<span class="catopts">合同
+      <select onchange="setProductOption('contract_form',this.value)">
+        <option value="merge" ${d.contract_form==='拆分'?'':'selected'}>合并版</option>
+        <option value="split" ${d.contract_form==='拆分'?'selected':''}>拆分版</option>
+      </select></span>`;
+  }
+  return `<div class="catlabel"><span>${esc(cat)}</span>${opts}</div>`;
+}
+async function setProductOption(field,value){
+  const b={id:window._pid};b[field]=value;
+  const res=await api('/api/product_options','POST',b);
+  if(res.error){toast(res.error,true);return;}
+  toast('已更新');
+  openDetail(window._pid,1);
 }
 function expandAll(o){document.querySelectorAll('#detailBody .reqcard').forEach(d=>{d.open=o;setReqOpen(d.id.replace('rq',''),o);});}
 function summarySteps(r){
@@ -420,19 +567,21 @@ async function loadLibrary(){const lib=await api('/api/library');let h='';
     :'<div class="empty" style="padding:16px 0">还没有单个文件。</div>';
   document.getElementById('libBody').innerHTML=h;}
 function libPackageCard(p){
-  const files=(p.files||[]).map(f=>`<span class="fchip"><b>${esc(f.category)}</b> ${esc(f.filename)} <span class="xdel" onclick="delLibFile(${f.id})">×</span></span>`).join('')||'<span class="na">空包，请上传文件</span>';
-  return `<div class="card" style="margin-bottom:12px"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
-    <h3 style="margin:0">📦 ${esc(p.name)}</h3>
-    <span><span class="link" onclick="uploadLibToPackage(${p.id})">＋上传文件到此包</span> · <span class="link" style="color:var(--red)" onclick="delLibPackage(${p.id})">删除包</span></span></div>
-    ${p.note?`<div class="meta">${esc(p.note)}</div>`:''}
-    <div class="files" style="margin-top:8px">${files}</div></div>`;}
+  const cats=['主文件','消保','法审','用印','其他'];
+  const rows=cats.map(cat=>{const fs=(p.files||[]).filter(f=>f.category===cat);
+    const chips=fs.map(f=>`<span class="fchip">${esc(f.filename)} <span class="xdel" onclick="event.stopPropagation();delLibFile(${f.id})">×</span></span>`).join('')||'<span class="na">未上传</span>';
+    return `<div class="libcat"><div class="libcat-name">${esc(cat)}</div><div class="libcat-files">${chips}</div><button class="btn ghost sm" onclick="uploadLibToPackage(${p.id},'${cat}')">＋上传</button></div>`;}).join('');
+  return `<div class="card libpkg"><div class="libpkg-head">
+    <div><div class="libpkg-title"><span>📦</span><span>${esc(p.name)}</span></div>${p.note?`<div class="meta" style="margin:6px 0 0">${esc(p.note)}</div>`:''}</div>
+    <span class="link" style="color:var(--red)" onclick="delLibPackage(${p.id})">删除包</span></div>
+    <div class="libpkg-grid">${rows}</div></div>`;}
 async function newLibPackage(){const n=prompt('文件包名称（如：XX发行-总对总一套）：');if(!n||!n.trim())return;const note=prompt('备注（可留空）：')||'';
   await api('/api/lib_package_add','POST',{name:n.trim(),note:note.trim()});loadLibrary();toast('已新建文件包');}
 async function delLibPackage(id){if(!confirm('删除此文件包及其中所有文件？'))return;await api('/api/lib_package_delete','POST',{id});loadLibrary();toast('已删除');}
 async function delLibFile(id){if(!confirm('从文件库删除此文件？'))return;await api('/api/lib_file_delete','POST',{id});loadLibrary();}
-function uploadLibSingle(){libUpload(null);}
-function uploadLibToPackage(pid){libUpload(pid);}
-function libUpload(pid){const cat=(prompt('文件类别（主文件 / 消保 / 法审 / 用印 / 其他）：','主文件')||'').trim();if(!cat)return;
+function uploadLibSingle(){const cat=(prompt('文件类别（主文件 / 消保 / 法审 / 用印 / 其他）：','主文件')||'').trim();if(!cat)return;libUpload(null,cat);}
+function uploadLibToPackage(pid,cat){libUpload(pid,cat);}
+function libUpload(pid,cat){if(!cat)return;
   const i=document.createElement('input');i.type='file';i.onchange=()=>{const f=i.files[0];if(!f)return;const rd=new FileReader();
     rd.onload=async()=>{const res=await api('/api/lib_upload','POST',{package_id:pid,category:cat,filename:f.name,data_base64:rd.result.split(',')[1]});
       if(res.error)toast(res.error,true);else toast('已上传到文件库');loadLibrary();};rd.readAsDataURL(f);};i.click();}
@@ -467,15 +616,26 @@ async function loadTodo(){const t=await api('/api/todo');const el=document.getEl
    <td style="width:120px">${esc(x.category)}</td><td>${esc(x.name)}</td><td><span class="badge b-blue">${esc(x.next_action)}</span></td></tr>`).join('')}</tbody></table></div>`).join('');
 }
 
+function tplScope(){return window._tplScope||'series';}
+function setTplScope(scope){window._tplScope=scope;window._tplProc=null;loadTpl();}
+function tplProcesses(){return CFG.processes.filter(p=>(p.template_scope||'other')===tplScope());}
+function syncTplScopeButtons(){
+  const s=tplScope();
+  document.getElementById('tplScopeSeries').className='btn '+(s==='series'?'':'ghost ')+'sm';
+  document.getElementById('tplScopeProduct').className='btn '+(s==='product'?'':'ghost ')+'sm';
+}
 async function loadTpl(){await loadCfg();
   const mx=await api('/api/blueprint_matrix');MX={};
   mx.forEach(r=>{(MX[r.ptype]=MX[r.ptype]||{})[r.process_id]=r.count;});
   if(!window._tplType)window._tplType=(CFG.product_types[0]||{}).name||'通用';
-  if(!window._tplProc||!procAppliesTo(window._tplType,CFG.processes.find(p=>p.id===window._tplProc)))window._tplProc=((CFG.processes||[]).find(p=>procAppliesTo(window._tplType,p))||{}).id;
+  const procs=tplProcesses();
+  if(!window._tplProc||!procs.find(p=>p.id===window._tplProc&&procAppliesTo(window._tplType,p)))window._tplProc=(procs.find(p=>procAppliesTo(window._tplType,p))||{}).id;
+  syncTplScopeButtons();
   renderMatrix();loadBp();}
 function ownCount(pt,pid){return (MX[pt]&&MX[pt][pid])||0;}
 function renderMatrix(){
-  const procs=CFG.processes,types=CFG.product_types,el=document.getElementById('tplMatrix');
+  const procs=tplProcesses(),types=CFG.product_types,el=document.getElementById('tplMatrix');
+  if(!procs.length){el.innerHTML='<div class="empty">当前模板类型还没有流程。</div>';document.getElementById('bpBody').innerHTML='';return;}
   let g=`<div class="tplmx" style="grid-template-columns:1.2fr repeat(${procs.length},1fr)"><div class="mh"></div>`+
     procs.map(p=>`<div class="mh">${esc(p.name)}${procOwner(p)!=='通用'?`<br><span class="badge b-gray">${esc(procOwner(p))}</span>`:''} <span class="xdel" title="删除此流程" onclick="delProc(${p.id})">×</span></div>`).join('');
   types.forEach(t=>{const base=t.name==='通用';
@@ -491,13 +651,13 @@ function renderMatrix(){
       g+=`<div class="${cls}" ${applies?`data-pt="${esc(t.name)}" data-pid="${p.id}"`:''}>${inner}</div>`;});});
   g+=`</div><div style="display:flex;gap:18px;align-items:center;font-size:11px;color:var(--muted);margin-top:8px;flex-wrap:wrap">
     <span><b style="color:var(--blue-dk)">N 项</b> 已配置</span><span>↑ 继承通用（点格子可复制后微调）</span><span>不适用＝该流程属于其他产品类型</span><span><span style="color:var(--red)">×</span> 删除类型/流程</span>
-    <span style="flex:1"></span><button class="btn ghost sm" onclick="addType()">＋ 产品类型</button><button class="btn ghost sm" onclick="addProc()">＋ 流程（当前类型）</button></div>`;
+    <span style="flex:1"></span><button class="btn ghost sm" onclick="addType()">＋ 产品类型</button><button class="btn ghost sm" onclick="addProc()">＋ ${tplScope()==='series'?'产品系列':'具体产品'}流程</button></div>`;
   el.innerHTML=g;
   el.onclick=e=>{const c=e.target.closest('.mcell');if(c)pickCell(c.dataset.pt,+c.dataset.pid);};}
 function pickCell(pt,pid){if(!pt||!pid)return;window._tplType=pt;window._tplProc=pid;renderMatrix();loadBp();}
 async function loadBp(){const ptype=window._tplType,pid=window._tplProc,el=document.getElementById('bpBody');
   if(!ptype||!pid){el.innerHTML='';return;}
-  const proc=CFG.processes.find(p=>p.id===pid)||{};
+  const proc=tplProcesses().find(p=>p.id===pid)||CFG.processes.find(p=>p.id===pid)||{};
   const procName=proc.name||'';
   const canInherit=ptype!=='通用'&&procOwner(proc)==='通用';
   let items=await api('/api/blueprint?ptype='+encodeURIComponent(ptype)+'&process_id='+pid),inherited=false;
@@ -549,7 +709,7 @@ async function clearBp(){if(!confirm('清空【'+window._tplType+'】在本流�
   await api('/api/blueprint_clear','POST',{ptype:window._tplType,process_id:window._tplProc});await loadTpl();toast('已恢复为继承通用');}
 async function delBp(id){if(!confirm('删除此模板项？'))return;await api('/api/blueprint_delete','POST',{id});loadTpl();}
 async function addType(){const n=prompt('新产品类型名称：');if(!n)return;await api('/api/ptype_add','POST',{name:n.trim()});window._tplType=n.trim();await loadTpl();}
-async function addProc(){const n=prompt('新流程名称：');if(!n)return;await api('/api/process_add','POST',{name:n.trim(),ptype:window._tplType||'通用'});await loadTpl();}
+async function addProc(){const n=prompt('新流程名称：');if(!n)return;await api('/api/process_add','POST',{name:n.trim(),ptype:window._tplType||'通用',template_scope:tplScope()});await loadTpl();}
 async function delType(name){if(name==='通用'){toast('“通用”是基线，不能删除',true);return;}
   if(!confirm('删除产品类型【'+name+'】？\n它的专属模板会一并删除；已创建的产品不受影响。'))return;
   await api('/api/ptype_delete','POST',{name});if(window._tplType===name)window._tplType='通用';await loadTpl();toast('已删除产品类型');}
@@ -557,15 +717,27 @@ async function delProc(id){const name=(CFG.processes.find(p=>p.id===id)||{}).nam
   if(!confirm('删除流程【'+name+'】？\n将同时删除：该流程的全部模板项，以及所有产品中该流程的文件项及已上传文件。\n此操作不可恢复！'))return;
   await api('/api/process_delete','POST',{id});if(window._tplProc===id)window._tplProc=null;await loadTpl();toast('已删除流程');}
 
-async function openCreate(){await loadCfg();
+function toggleCreateKind(){
+  const isProduct=document.getElementById('cKind').value==='product';
+  document.getElementById('cParentField').style.display=isProduct?'block':'none';
+  document.getElementById('cName').placeholder=isProduct?'如：国泰海通多资产多策略C款FOF1号':'如：国泰海通多资产多策略C款FOFX号';
+}
+async function openCreate(kind,parentId){await loadCfg();
+  const ps=await api('/api/products');
+  const series=ps.filter(p=>(p.kind||'series')==='series');
   document.getElementById('cType').innerHTML=CFG.product_types.map(t=>`<option>${esc(t.name)}</option>`).join('');
-  document.getElementById('cPoster').checked=false;
+  document.getElementById('cParent').innerHTML=series.map(p=>`<option value="${p.id}" ${p.id===parentId?'selected':''}>${esc(p.name)}</option>`).join('');
+  document.getElementById('cKind').value=kind||'series';
+  toggleCreateKind();
   ['cIssueStart','cIssueEnd','cEstablished'].forEach(x=>document.getElementById(x).value='');
   document.getElementById('cName').value='';show_('mCreate');}
 async function submitCreate(){const name=document.getElementById('cName').value.trim();if(!name){toast('填产品名',true);return;}
-  const res=await api('/api/products','POST',{name,ptype:document.getElementById('cType').value,
-   contract_form:document.getElementById('cForm').value,n_supp:+document.getElementById('cSupp').value||1,has_poster:document.getElementById('cPoster').checked,
+  const kind=document.getElementById('cKind').value;
+  const parent_id=kind==='product'?+document.getElementById('cParent').value:null;
+  if(kind==='product'&&!parent_id){toast('请先选择所属产品系列',true);return;}
+  const res=await api('/api/products','POST',{name,kind,parent_id,ptype:document.getElementById('cType').value,
    issue_start_date:document.getElementById('cIssueStart').value,issue_end_date:document.getElementById('cIssueEnd').value,established_date:document.getElementById('cEstablished').value});
+  if(res.error){toast(res.error,true);return;}
   close_('mCreate');toast('已生成清单');openDetail(res.id);}
 
 loadCfg().then(loadDash);

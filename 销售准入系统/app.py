@@ -26,13 +26,14 @@ SCHEMA = """
 CREATE TABLE IF NOT EXISTS meta(k TEXT PRIMARY KEY, v TEXT);
 CREATE TABLE IF NOT EXISTS institution(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, has_poster INTEGER DEFAULT 0, note TEXT DEFAULT '');
 CREATE TABLE IF NOT EXISTS product_type(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL);
-CREATE TABLE IF NOT EXISTS process(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, sort INTEGER DEFAULT 0, ptype TEXT DEFAULT '通用');
+CREATE TABLE IF NOT EXISTS process(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, sort INTEGER DEFAULT 0, ptype TEXT DEFAULT '通用', template_scope TEXT DEFAULT 'series');
 CREATE TABLE IF NOT EXISTS blueprint_item(id INTEGER PRIMARY KEY AUTOINCREMENT, ptype TEXT DEFAULT '通用', process_id INTEGER,
   category TEXT, name TEXT, required INTEGER DEFAULT 1, needs_file INTEGER DEFAULT 1, needs_xb INTEGER DEFAULT 0, needs_fs INTEGER DEFAULT 0,
   needs_yy INTEGER DEFAULT 0, seal_party TEXT DEFAULT '', cond TEXT DEFAULT 'always', repeatable INTEGER DEFAULT 0, sort INTEGER DEFAULT 0);
 CREATE TABLE IF NOT EXISTS product(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, ptype TEXT DEFAULT '通用',
-  institution_id INTEGER, contract_form TEXT DEFAULT '合并', created_at TEXT,
-  issue_start_date TEXT DEFAULT '', issue_end_date TEXT DEFAULT '', established_date TEXT DEFAULT '');
+  institution_id INTEGER, contract_form TEXT DEFAULT '合并', has_poster INTEGER DEFAULT 0, created_at TEXT,
+  issue_start_date TEXT DEFAULT '', issue_end_date TEXT DEFAULT '', established_date TEXT DEFAULT '',
+  kind TEXT DEFAULT 'series', parent_id INTEGER);
 CREATE TABLE IF NOT EXISTS requirement(id INTEGER PRIMARY KEY AUTOINCREMENT, product_id INTEGER, process_id INTEGER,
   category TEXT, name TEXT, required INTEGER DEFAULT 1, needs_file INTEGER DEFAULT 1, seal_party TEXT DEFAULT '',
   needs_xb INTEGER, needs_fs INTEGER, needs_yy INTEGER, xb_status TEXT, fs_status TEXT, yy_status TEXT, sort INTEGER DEFAULT 0);
@@ -44,7 +45,10 @@ CREATE TABLE IF NOT EXISTS lib_package(id INTEGER PRIMARY KEY AUTOINCREMENT, nam
 CREATE TABLE IF NOT EXISTS lib_file(id INTEGER PRIMARY KEY AUTOINCREMENT, package_id INTEGER, category TEXT, filename TEXT, filepath TEXT, size INTEGER, uploaded_at TEXT);
 """
 
-SEED_PROCESSES = [("产品准入", 1), ("销售准入", 2), ("上架发售", 3), ("存续管理", 4)]
+SEED_PROCESSES = [("产品准入", 1), ("销售准入", 2), ("推介发行", 3), ("参数设置材料", 4), ("销售材料", 5)]
+PROCESS_SORT = dict(SEED_PROCESSES)
+SERIES_TEMPLATE_PROCESSES = {"产品准入", "销售准入", "推介发行"}
+PRODUCT_TEMPLATE_PROCESSES = {"参数设置材料", "销售材料"}
 SEED_TYPES = ["通用", "私募证券投资基金", "固收+理财"]
 # (ptype, process, category, name, required, xb, fs, yy, seal, cond, repeatable, sort)
 SEED_BP = [
@@ -66,6 +70,43 @@ SEED_BP = [
     ("通用", "销售准入", "合同", "计划说明书（拆分版）", 1, 1, 1, 0, "", "split", 0, 12),
 ]
 
+SERIES_BP = [
+    ("产品准入", "准入材料", "产品准入申请材料", 1, 1, 1, 0, "", 1),
+    ("产品准入", "准入结果", "产品准入批单", 1, 0, 0, 0, "", 2),
+    ("销售准入", "准入依据", "产品准入批单", 1, 0, 0, 0, "", 1),
+    ("销售准入", "销售准入材料", "销售准入申请材料", 1, 1, 1, 0, "", 2),
+    ("销售准入", "销售准入结果", "销售准入批单", 1, 0, 0, 0, "", 3),
+    ("推介发行", "发行材料", "推介发行材料包", 1, 1, 0, 0, "", 1),
+    ("推介发行", "发行结果", "产品系列发行确认", 1, 0, 0, 0, "", 2),
+]
+
+CHILD_BP = [
+    ("参数设置材料", "参数设置材料", "管理合同", 1, 0, 0, 0, "", 1),
+    ("参数设置材料", "参数设置材料", "风险揭示书和计划说明书合并文件", 1, 0, 0, 0, "", 2),
+    ("参数设置材料", "参数设置材料", "参数设置表 Excel 版", 1, 0, 0, 0, "", 3),
+    ("参数设置材料", "参数设置材料", "参数设置表 PDF 版", 1, 0, 0, 1, "对方", 4),
+    ("参数设置材料", "参数设置材料", "参数设置表转换 XML 文件", 1, 0, 0, 0, "", 5),
+    ("销售材料", "宣传材料", "PPT（如有修改需消保）", 1, 1, 0, 0, "", 1),
+    ("销售材料", "宣传材料", "一页通（如有修改需消保）", 1, 1, 0, 0, "", 2),
+    ("销售材料", "宣传材料", "海报（或有，如有修改需消保）", 1, 1, 0, 0, "", 3),
+    ("销售材料", "宣传材料", "双录话术（如有修改需消保）", 1, 1, 0, 0, "", 4),
+    ("销售材料", "宣传材料", "线上智能播报（如有修改需消保）", 1, 1, 0, 0, "", 5),
+    ("销售材料", "合同", "管理合同", 1, 0, 0, 0, "", 6),
+    ("销售材料", "合同", "风险揭示书", 1, 0, 0, 0, "", 7),
+    ("销售材料", "合同", "计划说明书", 1, 0, 0, 0, "", 8),
+    ("销售材料", "参数设置表", "参数设置表 Excel 版", 1, 0, 0, 0, "", 9),
+    ("销售材料", "参数设置表", "参数设置表 PDF 版", 1, 0, 0, 1, "对方", 10),
+]
+
+
+def blueprint_seed_rows():
+    rows = []
+    for t in SEED_BP:
+        rows.append((t[0], t[1], t[2], t[3], t[4], 1, t[5], t[6], t[7], t[8], t[9], t[10], t[11]))
+    for proc, category, name, needs_file, xb, fs, yy, seal, sort in CHILD_BP:
+        rows.append(("通用", proc, category, name, 1, needs_file, xb, fs, yy, seal, "always", 0, sort))
+    return rows
+
 
 def db():
     conn = sqlite3.connect(DB)
@@ -80,6 +121,27 @@ def now():
 def pid_of(conn, name):
     r = conn.execute("SELECT id FROM process WHERE name=?", (name,)).fetchone()
     return r["id"] if r else None
+
+
+def ensure_process(conn, name, sort):
+    pid = pid_of(conn, name)
+    if pid:
+        conn.execute("UPDATE process SET sort=? WHERE id=?", (sort, pid))
+        return pid
+    return conn.execute("INSERT INTO process(name,sort,ptype) VALUES(?,?,?)", (name, sort, "通用")).lastrowid
+
+
+def ensure_blueprint_defaults(conn):
+    for ptype, proc, category, name, required, needs_file, xb, fs, yy, seal, cond, repeatable, sort in blueprint_seed_rows():
+        proc_id = ensure_process(conn, proc, PROCESS_SORT.get(proc, 99))
+        exists = conn.execute("""SELECT 1 FROM blueprint_item
+                                 WHERE ptype=? AND process_id=? AND category=? AND name=?""",
+                              (ptype, proc_id, category, name)).fetchone()
+        if exists:
+            continue
+        conn.execute("""INSERT INTO blueprint_item(ptype,process_id,category,name,required,needs_file,needs_xb,needs_fs,needs_yy,seal_party,cond,repeatable,sort)
+                        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                     (ptype, proc_id, category, name, required, needs_file, xb, fs, yy, seal, cond, repeatable, sort))
 
 
 def mirror_map(conn, product_id):
@@ -113,10 +175,21 @@ def init_db():
     if "ptype" not in _process_cols:
         conn.execute("ALTER TABLE process ADD COLUMN ptype TEXT DEFAULT '通用'")
         conn.execute("UPDATE process SET ptype='通用' WHERE ptype IS NULL OR ptype=''")
+    _process_cols = {r[1] for r in conn.execute("PRAGMA table_info(process)")}
+    if "template_scope" not in _process_cols:
+        conn.execute("ALTER TABLE process ADD COLUMN template_scope TEXT DEFAULT 'series'")
     _product_cols = {r[1] for r in conn.execute("PRAGMA table_info(product)")}
     for _col in ("issue_start_date", "issue_end_date", "established_date"):
         if _col not in _product_cols:
             conn.execute("ALTER TABLE product ADD COLUMN %s TEXT DEFAULT ''" % _col)
+    if "has_poster" not in _product_cols:
+        conn.execute("ALTER TABLE product ADD COLUMN has_poster INTEGER DEFAULT 0")
+    _product_cols = {r[1] for r in conn.execute("PRAGMA table_info(product)")}
+    if "kind" not in _product_cols:
+        conn.execute("ALTER TABLE product ADD COLUMN kind TEXT DEFAULT 'series'")
+        conn.execute("UPDATE product SET kind='series' WHERE kind IS NULL OR kind=''")
+    if "parent_id" not in _product_cols:
+        conn.execute("ALTER TABLE product ADD COLUMN parent_id INTEGER")
     for _tbl in ("blueprint_item", "requirement"):
         _cols = {r[1] for r in conn.execute("PRAGMA table_info(%s)" % _tbl)}
         if "needs_file" not in _cols:
@@ -124,6 +197,14 @@ def init_db():
     if conn.execute("SELECT COUNT(*) FROM process").fetchone()[0] == 0:
         for n, s in SEED_PROCESSES:
             conn.execute("INSERT INTO process(name,sort,ptype) VALUES(?,?,?)", (n, s, "通用"))
+    conn.execute("UPDATE process SET name='推介发行' WHERE name='上架发售'")
+    for n, s in SEED_PROCESSES:
+        ensure_process(conn, n, s)
+    conn.execute("UPDATE process SET sort=99 WHERE name='存续管理'")
+    conn.execute("UPDATE process SET template_scope='series' WHERE name IN ('产品准入','销售准入','推介发行')")
+    conn.execute("UPDATE process SET template_scope='product' WHERE name IN ('参数设置材料','销售材料')")
+    conn.execute("UPDATE process SET template_scope='other' WHERE name='存续管理'")
+    conn.execute("UPDATE process SET template_scope='other' WHERE name NOT IN ('产品准入','销售准入','推介发行','参数设置材料','销售材料') AND (template_scope IS NULL OR template_scope='')")
     if conn.execute("SELECT COUNT(*) FROM product_type").fetchone()[0] == 0:
         for n in SEED_TYPES:
             conn.execute("INSERT INTO product_type(name) VALUES(?)", (n,))
@@ -131,8 +212,29 @@ def init_db():
         for t in SEED_BP:
             conn.execute("""INSERT INTO blueprint_item(ptype,process_id,category,name,required,needs_xb,needs_fs,needs_yy,seal_party,cond,repeatable,sort)
                 VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""", (t[0], pid_of(conn, t[1]), t[2], t[3], t[4], t[5], t[6], t[7], t[8], t[9], t[10], t[11]))
+    if not conn.execute("SELECT 1 FROM meta WHERE k='default_blueprints_seeded_v2'").fetchone():
+        ensure_blueprint_defaults(conn)
+        conn.execute("INSERT OR REPLACE INTO meta(k,v) VALUES('default_blueprints_seeded_v2','1')")
+    if not conn.execute("SELECT 1 FROM meta WHERE k='default_blueprints_seeded_v3'").fetchone():
+        ensure_blueprint_defaults(conn)
+        conn.execute("INSERT OR REPLACE INTO meta(k,v) VALUES('default_blueprints_seeded_v3','1')")
     conn.commit()
     migrate_v1(conn)
+    if not conn.execute("SELECT 1 FROM meta WHERE k='series_template_synced_v1'").fetchone():
+        for p in conn.execute("SELECT id FROM product WHERE COALESCE(kind,'series')='series'").fetchall():
+            instantiate_series(conn, p["id"])
+        conn.execute("INSERT OR REPLACE INTO meta(k,v) VALUES('series_template_synced_v1','1')")
+    if not conn.execute("SELECT 1 FROM meta WHERE k='series_template_cleanup_v2'").fetchone():
+        for p in conn.execute("SELECT id FROM product WHERE COALESCE(kind,'series')='series'").fetchall():
+            instantiate_series(conn, p["id"])
+        conn.execute("INSERT OR REPLACE INTO meta(k,v) VALUES('series_template_cleanup_v2','1')")
+    if not conn.execute("SELECT 1 FROM meta WHERE k='product_templates_synced_v1'").fetchone():
+        for p in conn.execute("SELECT id,kind FROM product").fetchall():
+            if (p["kind"] or "series") == "product":
+                instantiate_child_product(conn, p["id"])
+            else:
+                instantiate_series(conn, p["id"])
+        conn.execute("INSERT OR REPLACE INTO meta(k,v) VALUES('product_templates_synced_v1','1')")
     conn.commit()
     conn.close()
 
@@ -189,6 +291,81 @@ def instantiate(conn, pid, ptype, n_supp, has_poster, form):
                 suf = (" #%d" % (k + 1)) if (it["repeatable"] and cnt > 1) else ""
                 add_requirement(conn, pid, p["id"], it["category"], it["name"] + suf,
                                 it["needs_xb"], it["needs_fs"], it["needs_yy"], it["seal_party"], it["sort"], it["needs_file"])
+
+
+def instantiate_from_rows(conn, pid, rows):
+    for proc, category, name, needs_file, xb, fs, yy, seal, sort in rows:
+        add_requirement(conn, pid, ensure_process(conn, proc, PROCESS_SORT.get(proc, 99)), category, name, xb, fs, yy, seal, sort, needs_file)
+
+
+def has_requirement(conn, pid, proc_id, category, name):
+    return conn.execute("""SELECT 1 FROM requirement
+                           WHERE product_id=? AND process_id=? AND category=? AND name=?""",
+                        (pid, proc_id, category, name)).fetchone() is not None
+
+
+def add_blueprint_requirement(conn, pid, proc_id, it):
+    if has_requirement(conn, pid, proc_id, it["category"], it["name"]):
+        return
+    add_requirement(conn, pid, proc_id, it["category"], it["name"],
+                    it["needs_xb"], it["needs_fs"], it["needs_yy"], it["seal_party"], it["sort"], it["needs_file"])
+
+
+def ensure_static_requirement(conn, pid, proc, category, name, needs_file, xb, fs, yy, seal, sort):
+    proc_id = ensure_process(conn, proc, PROCESS_SORT.get(proc, 99))
+    if has_requirement(conn, pid, proc_id, category, name):
+        return
+    add_requirement(conn, pid, proc_id, category, name, xb, fs, yy, seal, sort, needs_file)
+
+
+def delete_empty_requirement_by_name(conn, pid, proc_id, category, name):
+    r = conn.execute("""SELECT id FROM requirement
+                        WHERE product_id=? AND process_id=? AND category=? AND name=?""",
+                     (pid, proc_id, category, name)).fetchone()
+    if not r:
+        return
+    has_files = conn.execute("SELECT 1 FROM docfile WHERE requirement_id=? LIMIT 1", (r["id"],)).fetchone()
+    if has_files:
+        return
+    conn.execute("DELETE FROM review_log WHERE requirement_id=?", (r["id"],))
+    conn.execute("DELETE FROM requirement WHERE id=?", (r["id"],))
+
+
+def instantiate_series(conn, pid):
+    p = conn.execute("SELECT * FROM product WHERE id=?", (pid,)).fetchone()
+    ptype = p["ptype"] if p else "通用"
+    fallback_by_proc = {}
+    for row in SERIES_BP:
+        fallback_by_proc.setdefault(row[0], []).append(row)
+    for proc_name in ("产品准入", "销售准入", "推介发行"):
+        proc_id = ensure_process(conn, proc_name, PROCESS_SORT.get(proc_name, 99))
+        items = blueprint_for(conn, ptype, proc_id)
+        if items:
+            for row in fallback_by_proc.get(proc_name, []):
+                delete_empty_requirement_by_name(conn, pid, proc_id, row[1], row[2])
+            for it in items:
+                # 产品系列按模板完整生成，不再在创建时按合同形态/海报等条件过滤。
+                add_blueprint_requirement(conn, pid, proc_id, it)
+        else:
+            for row in fallback_by_proc.get(proc_name, []):
+                ensure_static_requirement(conn, pid, *row)
+
+
+def instantiate_child_product(conn, pid):
+    p = conn.execute("SELECT * FROM product WHERE id=?", (pid,)).fetchone()
+    ptype = p["ptype"] if p else "通用"
+    fallback_by_proc = {}
+    for row in CHILD_BP:
+        fallback_by_proc.setdefault(row[0], []).append(row)
+    for proc_name in ("参数设置材料", "销售材料"):
+        proc_id = ensure_process(conn, proc_name, PROCESS_SORT.get(proc_name, 99))
+        items = blueprint_for(conn, ptype, proc_id)
+        if items:
+            for it in items:
+                add_blueprint_requirement(conn, pid, proc_id, it)
+        else:
+            for row in fallback_by_proc.get(proc_name, []):
+                ensure_static_requirement(conn, pid, *row)
 
 
 def import_process_files(conn, dst_pid, proc_id, src_pid):
@@ -285,15 +462,41 @@ def req_full(conn, r):
     return d
 
 
+def requirement_visible_for_product(p, r):
+    name = r["name"] or ""
+    category = r["category"] or ""
+    if category == "宣传材料" and "海报" in name and not int(p["has_poster"] or 0):
+        return False
+    if category == "合同":
+        form = p["contract_form"] or "合并"
+        if "合并版" in name and form != "合并":
+            return False
+        if "拆分版" in name and form != "拆分":
+            return False
+    return True
+
+
+def visible_requirements(conn, p, extra_sql="", params=()):
+    sql = "SELECT * FROM requirement WHERE product_id=? " + extra_sql
+    rows = conn.execute(sql, (p["id"],) + tuple(params)).fetchall()
+    return [r for r in rows if requirement_visible_for_product(p, r)]
+
+
 def product_overview(conn, p):
     mm = mirror_map(conn, p["id"])
-    reqs = [r for r in conn.execute("SELECT * FROM requirement WHERE product_id=? AND required=1", (p["id"],)).fetchall() if r["process_id"] not in mm]
+    reqs = [r for r in visible_requirements(conn, p, "AND required=1") if r["process_id"] not in mm]
     total = len(reqs)
     done = sum(1 for r in reqs if next_action(conn, r) == "已到位")
     d = dict(p)
     d["total"], d["done"] = total, done
     d["progress"] = round(done * 100 / total) if total else 0
     d["ready"] = (total > 0 and done == total)
+    d["kind"] = d.get("kind") or "series"
+    if d["kind"] == "series":
+        d["child_count"] = conn.execute("SELECT COUNT(*) FROM product WHERE parent_id=?", (p["id"],)).fetchone()[0]
+    else:
+        parent = conn.execute("SELECT name FROM product WHERE id=?", (p["parent_id"],)).fetchone() if p["parent_id"] else None
+        d["series_name"] = parent["name"] if parent else ""
     return d
 
 
@@ -316,7 +519,7 @@ def build_zip(conn, products, history):
         for pr in conn.execute("SELECT * FROM process ORDER BY sort,id").fetchall():
             if pr["id"] in mm:
                 continue
-            reqs = conn.execute("SELECT * FROM requirement WHERE product_id=? AND process_id=? ORDER BY sort,id", (p["id"], pr["id"])).fetchall()
+            reqs = visible_requirements(conn, p, "AND process_id=? ORDER BY sort,id", (pr["id"],))
             for r in reqs:
                 base = "%s/%s/%s/%s" % (proot, safe(pr["name"]), safe(r["category"]), safe(r["name"]))
                 fdone = "是" if next_action(conn, r) == "已到位" else "否"
@@ -346,6 +549,17 @@ def build_zip(conn, products, history):
     return buf.getvalue()
 
 
+def delete_product_tree(conn, pidv):
+    child_ids = [r["id"] for r in conn.execute("SELECT id FROM product WHERE parent_id=?", (pidv,)).fetchall()]
+    for cid in child_ids:
+        delete_product_tree(conn, cid)
+    conn.execute("DELETE FROM docfile WHERE requirement_id IN (SELECT id FROM requirement WHERE product_id=?)", (pidv,))
+    conn.execute("DELETE FROM review_log WHERE requirement_id IN (SELECT id FROM requirement WHERE product_id=?)", (pidv,))
+    conn.execute("DELETE FROM requirement WHERE product_id=?", (pidv,))
+    conn.execute("DELETE FROM process_mirror WHERE product_id=?", (pidv,))
+    conn.execute("DELETE FROM product WHERE id=?", (pidv,))
+
+
 # ===================== HTTP =====================
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, *a):
@@ -373,7 +587,12 @@ class Handler(BaseHTTPRequestHandler):
                 return self._file("index.html", "text/html; charset=utf-8")
             if path == "/api/config":
                 conn = db()
-                out = {"processes": [dict(r) for r in conn.execute("SELECT * FROM process ORDER BY sort,id")],
+                processes = []
+                for r in conn.execute("SELECT * FROM process ORDER BY sort,id"):
+                    d = dict(r)
+                    d["template_scope"] = d.get("template_scope") or ("product" if d["name"] in PRODUCT_TEMPLATE_PROCESSES else ("series" if d["name"] in SERIES_TEMPLATE_PROCESSES else "other"))
+                    processes.append(d)
+                out = {"processes": processes,
                        "product_types": [dict(r) for r in conn.execute("SELECT * FROM product_type ORDER BY id")]}
                 conn.close()
                 return self._json(out)
@@ -422,12 +641,23 @@ class Handler(BaseHTTPRequestHandler):
             b = self._body()
             conn = db()
             if path == "/api/products":
-                pidv = conn.execute("""INSERT INTO product(name,ptype,contract_form,created_at,issue_start_date,issue_end_date,established_date)
-                                    VALUES(?,?,?,?,?,?,?)""",
-                                    (b.get("name", "").strip(), b.get("ptype", "通用"), b.get("contract_form", "合并"), now(),
+                kind = b.get("kind", "series")
+                if kind not in ("series", "product"):
+                    kind = "series"
+                parent_id = int(b.get("parent_id") or 0) or None
+                if kind == "product" and not parent_id:
+                    conn.close(); return self._json({"error": "具体产品必须选择所属产品系列"}, 400)
+                if kind == "product" and not conn.execute("SELECT 1 FROM product WHERE id=? AND COALESCE(kind,'series')='series'", (parent_id,)).fetchone():
+                    conn.close(); return self._json({"error": "所属产品系列不存在"}, 400)
+                pidv = conn.execute("""INSERT INTO product(name,ptype,contract_form,has_poster,created_at,issue_start_date,issue_end_date,established_date,kind,parent_id)
+                                    VALUES(?,?,?,?,?,?,?,?,?,?)""",
+                                    (b.get("name", "").strip(), b.get("ptype", "通用"), b.get("contract_form", "合并"), 1 if b.get("has_poster") else 0, now(),
                                      b.get("issue_start_date", "").strip(), b.get("issue_end_date", "").strip(),
-                                     b.get("established_date", "").strip())).lastrowid
-                instantiate(conn, pidv, b.get("ptype", "通用"), int(b.get("n_supp", 1)), bool(b.get("has_poster")), b.get("contract_form", "合并"))
+                                     b.get("established_date", "").strip(), kind, parent_id)).lastrowid
+                if kind == "product":
+                    instantiate_child_product(conn, pidv)
+                else:
+                    instantiate_series(conn, pidv)
                 conn.commit(); conn.close(); return self._json({"id": pidv})
             if path == "/api/product_update":
                 pidv = int(b["id"])
@@ -435,12 +665,28 @@ class Handler(BaseHTTPRequestHandler):
                              (b.get("name", "").strip(), b.get("issue_start_date", "").strip(),
                               b.get("issue_end_date", "").strip(), b.get("established_date", "").strip(), pidv))
                 conn.commit(); conn.close(); return self._json({"ok": True})
+            if path == "/api/product_options":
+                pidv = int(b["id"])
+                sets, vals = [], []
+                if "has_poster" in b:
+                    sets.append("has_poster=?"); vals.append(1 if b.get("has_poster") else 0)
+                if "contract_form" in b:
+                    form = b.get("contract_form") or "合并"
+                    if form == "merge":
+                        form = "合并"
+                    if form == "split":
+                        form = "拆分"
+                    if form not in ("合并", "拆分"):
+                        conn.close(); return self._json({"error": "合同形态只能选择合并或拆分"}, 400)
+                    sets.append("contract_form=?"); vals.append(form)
+                if not sets:
+                    conn.close(); return self._json({"ok": True})
+                vals.append(pidv)
+                conn.execute("UPDATE product SET " + ",".join(sets) + " WHERE id=?", vals)
+                conn.commit(); conn.close(); return self._json({"ok": True})
             if path == "/api/product_delete":
                 pidv = int(b["id"])
-                conn.execute("DELETE FROM docfile WHERE requirement_id IN (SELECT id FROM requirement WHERE product_id=?)", (pidv,))
-                conn.execute("DELETE FROM requirement WHERE product_id=?", (pidv,))
-                conn.execute("DELETE FROM process_mirror WHERE product_id=?", (pidv,))
-                conn.execute("DELETE FROM product WHERE id=?", (pidv,))
+                delete_product_tree(conn, pidv)
                 conn.commit(); conn.close(); return self._json({"ok": True})
             if path == "/api/process_mirror_set":
                 prod = int(b["product_id"]); proc = int(b["process_id"]); src = int(b["source_process_id"])
@@ -553,7 +799,10 @@ class Handler(BaseHTTPRequestHandler):
                 conn.commit(); conn.close(); return self._json({"ok": True})
             if path == "/api/process_add":
                 mx = conn.execute("SELECT MAX(sort) m FROM process").fetchone()["m"] or 0
-                conn.execute("INSERT INTO process(name,sort,ptype) VALUES(?,?,?)", (b.get("name", "").strip(), mx + 1, b.get("ptype", "通用") or "通用"))
+                scope = b.get("template_scope", "series")
+                if scope not in ("series", "product", "other"):
+                    scope = "series"
+                conn.execute("INSERT INTO process(name,sort,ptype,template_scope) VALUES(?,?,?,?)", (b.get("name", "").strip(), mx + 1, b.get("ptype", "通用") or "通用", scope))
                 conn.commit(); conn.close(); return self._json({"ok": True})
             if path == "/api/process_delete":
                 pid = int(b["id"])
@@ -616,7 +865,7 @@ class Handler(BaseHTTPRequestHandler):
                 continue
             src = mm.get(pr["id"], pr["id"])
             mirrored = pr["id"] in mm
-            reqs = conn.execute("SELECT * FROM requirement WHERE product_id=? AND process_id=? ORDER BY sort,id", (pid, src)).fetchall()
+            reqs = visible_requirements(conn, p, "AND process_id=? ORDER BY sort,id", (src,))
             if not reqs and not mirrored:
                 continue
             full = [req_full(conn, r) for r in reqs]
@@ -678,7 +927,7 @@ class Handler(BaseHTTPRequestHandler):
         out = []
         for p in conn.execute("SELECT * FROM product ORDER BY id DESC").fetchall():
             mm = mirror_map(conn, p["id"])
-            for r in conn.execute("SELECT * FROM requirement WHERE product_id=? AND required=1 ORDER BY process_id,sort,id", (p["id"],)).fetchall():
+            for r in visible_requirements(conn, p, "AND required=1 ORDER BY process_id,sort,id"):
                 if r["process_id"] in mm:
                     continue
                 na = next_action(conn, r)
